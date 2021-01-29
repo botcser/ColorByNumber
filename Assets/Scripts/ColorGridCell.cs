@@ -11,7 +11,7 @@ namespace Assets.Scripts
 
         public void ColorClick()
         {
-            Main.CurrentHandColor = Toggle.colors.normalColor;
+            ColorByNumber.CurrentHandColor = Toggle.colors.normalColor;
         }
     }
 }
