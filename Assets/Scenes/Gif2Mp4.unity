@@ -611,7 +611,7 @@ AudioSource:
   m_Enabled: 1
   serializedVersion: 4
   OutputAudioMixerGroup: {fileID: 0}
-  m_audioClip: {fileID: 8300000, guid: af40e2f6153a24349ac8cc5168dc3937, type: 3}
+  m_audioClip: {fileID: 8300000, guid: d1e1d26166783ee42a962a583b65e4b8, type: 3}
   m_PlayOnAwake: 0
   m_Volume: 1
   m_Pitch: 1
@@ -1873,6 +1873,8 @@ MonoBehaviour:
   ColorPrefab: {fileID: -4128041195818997149, guid: ec7957434e1154e44acc16dd07bae403,
     type: 3}
   SourceTexture: {fileID: 2800000, guid: b854222d0f6684f4bbe37511fcd72f3f, type: 3}
+  DebugText: {fileID: 0}
+  TextAsset: {fileID: 0}
 --- !u!1 &813568967
 GameObject:
   m_ObjectHideFlags: 0
@@ -2871,9 +2873,9 @@ MonoBehaviour:
   Panel: {fileID: 656769664}
   ReturnTo: {fileID: 0}
   Image1: {fileID: 2800000, guid: b854222d0f6684f4bbe37511fcd72f3f, type: 3}
-  Image2: {fileID: 2800000, guid: 4f27a39bca3e7db4b86a841d1d3b2461, type: 3}
-  Image3: {fileID: 2800000, guid: 7a161777189b29b4db763f0b4049cb5d, type: 3}
-  Image4: {fileID: 2800000, guid: 6b40770f0a4db23418e4f334697ef5ca, type: 3}
+  Image2: {fileID: 2800000, guid: 006fafef8799cf0448776db784cf6555, type: 3}
+  Image3: {fileID: 2800000, guid: 64222dcdb2d001f428a3a5712d1b3767, type: 3}
+  Image4: {fileID: 2800000, guid: 98be087731ac3024ea8e9588a76d29fc, type: 3}
   SourceAudio: {fileID: 320515458}
   CutedAudio: {fileID: 1457326378}
   HistogramImage: {fileID: 813568970}
