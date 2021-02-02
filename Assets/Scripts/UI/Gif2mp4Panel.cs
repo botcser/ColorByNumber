@@ -28,30 +28,32 @@ namespace Assets.Scripts.UI
         public RectTransform HistogramBoarderLRectTransform;
         public RectTransform HistogramBoarderRRectTransform;
         public ResizableRect HistogramRegionResizableRec;
-        public List<DraggableRect> DraggableRects;
         public Text GifDuractionTimeText;
         public Text AudioRegionDuractionTimeText;
+        public List<DraggableRect> DraggableRects;
         public List<MyGifFrame> InputGif;
-        public int position = 0;
+        public List<InputField> BordersInputFields;
+        public GameObject ReturnBordersButton;
 
         public HorizontalLayoutGroup Gifgram;
         public GameObject GifFramePrefab;
         public string InputMp3 = "Half-Life13";
         public Text StartTimeBorder;
         public Text EndTimeBorder;
+        public InputField StartTimeBorderInput;
+        public InputField EndTimeBorderInput;
 
         public static Gif2mp4Panel Instance;
         public static float CurrentAudioLenght;
         public static float GifDuractionTimeSec = 0f;
         public static float AudioRegionDuractionTimeSec = 0f;
-        public static float AudioRegionDuractionTimeSecOrig = 0f;
         public static float StartTime;
         public static float EndTime;
+        public static int BordersOutCount = 2;     // enter twice from start
+        public static int LoopAudioX = 1;
 
         private float _histogramFrameWidthInSeconds = 10f;
         private int _loopGifX = 1;
-        private int _loopAudioX = 1;
-        private int _loopRegionAudioX = 1;
 
         public void Awake()
         {
@@ -62,7 +64,7 @@ namespace Assets.Scripts.UI
         {
             InitGifsGram(_loopGifX);                               // INPUT GIF
 
-            MakeHistogramImage(SourceAudio.clip, _loopAudioX);                                  // Audio Histogram
+            MakeHistogramImage(SourceAudio.clip, LoopAudioX);                                  // Audio Histogram
 
             CurrentAudioLenght = SourceAudio.clip.length;
         }
@@ -72,6 +74,15 @@ namespace Assets.Scripts.UI
             if (SourceAudio.isPlaying && SourceAudio.time > EndTime)
             {
                 SourceAudio.Stop();
+            }
+
+            if (BordersOutCount > 1)
+            {
+                ReturnBordersButton.SetActive(true);
+            }
+            else if (ReturnBordersButton.activeSelf)
+            {
+                ReturnBordersButton.SetActive(false);
             }
         }
 
@@ -92,10 +103,13 @@ namespace Assets.Scripts.UI
 
         public void IncreaseAudioRegionLoop()
         {
-            if (_loopAudioX < 20)
+            var newAudioLenght = AudioRegionDuractionTimeSec * (LoopAudioX + 1);
+            if (newAudioLenght < SourceAudio.clip.length || newAudioLenght < CutedAudio?.clip.length)
             {
-                AudioRegionExtend(AudioRegionDuractionTimeSecOrig * ++_loopAudioX);
-                AudioRegionDuractionTimeSec = AudioRegionDuractionTimeSecOrig * ++_loopAudioX;
+                if (LoopAudioX < 20)
+                {
+                    AudioRegionExtend(AudioRegionDuractionTimeSec * ++LoopAudioX);
+                }
             }
         }
 
@@ -263,8 +277,8 @@ namespace Assets.Scripts.UI
 
         public static void UpdateStartEndTimes()
         {
-            var time1 = float.Parse(Instance.StartTimeBorder.text);
-            var time2 = float.Parse(Instance.EndTimeBorder.text);
+            var time1 = float.Parse(Instance.StartTimeBorderInput.text);
+            var time2 = float.Parse(Instance.EndTimeBorderInput.text);
             if (time1 > time2)
             {
                 StartTime = time2;
@@ -307,9 +321,10 @@ namespace Assets.Scripts.UI
             Debug.Log(" CutedAudio clip lenght = " + (CutedAudio.clip.length));
             CutedAudio.Play();
 
-            _loopAudioX = 1;
-            CurrentAudioLenght = AudioRegionDuractionTimeSecOrig = CutedAudio.clip.length;
-            MakeHistogramImage(CutedAudio.clip, _loopAudioX);
+            LoopAudioX = 1;
+            CurrentAudioLenght = AudioRegionDuractionTimeSec = CutedAudio.clip.length;
+            LoopAudioX = 1;
+            MakeHistogramImage(CutedAudio.clip, LoopAudioX);
             Debug.Log("DONE: " + StartTime + " - " + EndTime + " - " + CurrentAudioLenght);
             ResetDraggableRects();
         }
@@ -357,7 +372,7 @@ namespace Assets.Scripts.UI
 
         public void RegionAutoSynth()
         {
-            if (GifDuractionTimeSec > SourceAudio.clip.length || GifDuractionTimeSec > CutedAudio?.clip?.length)
+            if (GifDuractionTimeSec > SourceAudio.clip.length || GifDuractionTimeSec > CutedAudio?.clip.length)
             {
                 Debug.Log("GifDuractionTimeSec > Audio.clip.length! This auto feature is TODO!");             // TODO
             }
@@ -368,5 +383,24 @@ namespace Assets.Scripts.UI
                 HistogramRegionResizableRec.UpdateBorders();
             }
         }
+
+        public void AutoAudioExtend()
+        {
+            // расширяет аудио до размера гиф через ffmpeg
+        }
+
+        public void AudioExtendX2()
+        {
+            // дублирует аудио в два раза через ffmpeg
+        }
+
+        public void ResetRegion()
+        {
+            foreach (var borderInputField in BordersInputFields)
+            {
+                borderInputField.text = "11,11";
+            }
+        }
+
     }
 }

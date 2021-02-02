@@ -16,6 +16,7 @@ namespace Assets.AudioCrop
         public UnityEvent TimeBorder1;
         public UnityEvent TimeBorder2;
         public UnityEvent UpdateBorders;
+        public UnityEvent CenterLabel;
 
         private Vector2 _position, _pointer;
 
@@ -44,19 +45,26 @@ namespace Assets.AudioCrop
 
         void OnTriggerExit2D(Collider2D collisionInfo)
         {
-            if (AnchorRectTransform != null)
+            if (collisionInfo.tag != "border")
             {
-                _startRegionPosX = RectTransform.localPosition.x;
-                RectTransform.localPosition = new Vector3(RectTransform.localPosition.x + RectTransform.rect.width, transform.localPosition.y);
-                DragCallback?.Invoke();
-                _onTriggerCheck = true;
+                if (AnchorRectTransform != null)
+                {
+                    _startRegionPosX = RectTransform.localPosition.x;
+                    RectTransform.localPosition = new Vector3(RectTransform.localPosition.x + RectTransform.rect.width,
+                        transform.localPosition.y);
+                    DragCallback?.Invoke();
+                    _onTriggerCheck = true;
+                }
             }
         }
 
         void OnTriggerEnter2D(Collider2D collisionInfo)
         {
-            DragCallback?.Invoke();
-            _onTriggerCheck = false;
+            if (collisionInfo.tag != "border")
+            {
+                DragCallback?.Invoke();
+                _onTriggerCheck = false;
+            }
         }
 
         public void OnDrag(PointerEventData eventData)
@@ -81,18 +89,21 @@ namespace Assets.AudioCrop
             DragCallback?.Invoke();
             TimeBorder1?.Invoke();
             TimeBorder2?.Invoke();
+            CenterLabel?.Invoke();
         }
 
         public void ResetDraggableRect()
         {
             RectTransform.localPosition = new Vector3(-ParentRectTransform.rect.width / 2 + RectTransform.rect.width / 2, transform.localPosition.y);
             UpdateBorders?.Invoke();
+            CenterLabel?.Invoke();
         }
 
         public void ToEndDraggableRect()
         {
             RectTransform.localPosition = new Vector3(ParentRectTransform.rect.width / 2 - RectTransform.rect.width / 2, transform.localPosition.y);
             UpdateBorders?.Invoke();
+            CenterLabel?.Invoke();
         }
     }
 }

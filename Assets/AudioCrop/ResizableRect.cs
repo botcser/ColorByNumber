@@ -9,7 +9,6 @@ namespace Assets.AudioCrop
         public RectTransform RectTransform;
         public List<RectTransform> BordersRectTransform;
         public List<TimeBorder> BordersTimeBorder;
-        public List<TimeBorder> TimeBorders;
         public static ResizableRect Instance;
 
         public void Awake()
@@ -37,7 +36,7 @@ namespace Assets.AudioCrop
 
         public void UpdateBordersTime()
         {
-            foreach (var border in TimeBorders)
+            foreach (var border in BordersTimeBorder)
             {
                 border.UpdateTime();
             }
