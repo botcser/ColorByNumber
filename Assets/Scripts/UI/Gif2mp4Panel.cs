@@ -34,6 +34,7 @@ namespace Assets.Scripts.UI
         public List<MyGifFrame> InputGif;
         public List<InputField> BordersInputFields;
         public GameObject ReturnBordersButton;
+        public TimeBorder CenterLabel;
 
         public HorizontalLayoutGroup Gifgram;
         public GameObject GifFramePrefab;
@@ -104,7 +105,7 @@ namespace Assets.Scripts.UI
         public void IncreaseAudioRegionLoop()
         {
             var newAudioLenght = AudioRegionDuractionTimeSec * (LoopAudioX + 1);
-            if (newAudioLenght < SourceAudio.clip.length || newAudioLenght < CutedAudio?.clip.length)
+            if (newAudioLenght < SourceAudio.clip.length || newAudioLenght < CutedAudio.clip?.length)
             {
                 if (LoopAudioX < 20)
                 {
@@ -372,7 +373,7 @@ namespace Assets.Scripts.UI
 
         public void RegionAutoSynth()
         {
-            if (GifDuractionTimeSec > SourceAudio.clip.length || GifDuractionTimeSec > CutedAudio?.clip.length)
+            if (GifDuractionTimeSec > SourceAudio.clip.length || GifDuractionTimeSec > CutedAudio.clip?.length)
             {
                 Debug.Log("GifDuractionTimeSec > Audio.clip.length! This auto feature is TODO!");             // TODO
             }
@@ -396,9 +397,12 @@ namespace Assets.Scripts.UI
 
         public void ResetRegion()
         {
+            var deltaTime = -1;
             foreach (var borderInputField in BordersInputFields)
             {
-                borderInputField.text = "11,11";
+
+                //borderInputField.text = CenterLabel.Time.text;
+                //HistogramRegionRectTransform.localPosition = 
             }
         }
 
