@@ -42,7 +42,7 @@ namespace Assets.AudioCrop
 
         public void CheckIsEdited(InputField timeField)
         {
-            if (Input.GetKey(KeyCode.Return) && SetTime())
+            if ((Input.GetKey(KeyCode.Return) || Input.GetKey(KeyCode.KeypadEnter)) && SetTime())
             {
                 return;
             }
@@ -74,6 +74,26 @@ namespace Assets.AudioCrop
         {
             TimeInput.text = TimeInput.text.Replace('.', ',');
             var time = float.Parse(TimeInput.text);
+
+            if (time < 0 || time > Gif2mp4Panel.CurrentAudioLenght)
+            {
+                return false;
+            }
+            var newPosX = time * HistogramRectTransform.rect.width / Gif2mp4Panel.CurrentAudioLenght -
+                          HistogramRectTransform.rect.width / 2;
+
+            ParentRectTransform.anchoredPosition = new Vector2(newPosX, ParentRectTransform.anchoredPosition.y);
+
+            RegionResizableRect.UpdateSize();
+            Gif2mp4Panel.UpdateStartEndTimes();
+            Gif2mp4Panel.LoopAudioX = 1;
+            return true;
+        }
+
+        public bool SetTime(string newTime)
+        {
+            newTime = newTime.Replace('.', ',');
+            var time = float.Parse(newTime);
 
             if (time < 0 || time > Gif2mp4Panel.CurrentAudioLenght)
             {

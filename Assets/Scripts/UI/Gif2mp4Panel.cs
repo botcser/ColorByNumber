@@ -18,8 +18,8 @@ namespace Assets.Scripts.UI
         public Texture2D Image2;
         public Texture2D Image3;
         public Texture2D Image4;
-        public AudioSource SourceAudio;
-        public AudioSource CutedAudio;
+        public AudioSource InputAudioSource;
+        public AudioSource CurrAudioSource;
         public Image HistogramImage;
         public RectTransform HistogramWindowRectTransform;
         public RectTransform HistogramParentRectTransform;
@@ -32,13 +32,13 @@ namespace Assets.Scripts.UI
         public Text AudioRegionDuractionTimeText;
         public List<DraggableRect> DraggableRects;
         public List<MyGifFrame> InputGif;
+        public List<TimeBorder> BordersTimeBorder;
         public List<InputField> BordersInputFields;
         public GameObject ReturnBordersButton;
         public TimeBorder CenterLabel;
 
         public HorizontalLayoutGroup Gifgram;
         public GameObject GifFramePrefab;
-        public string InputMp3 = "Half-Life13";
         public Text StartTimeBorder;
         public Text EndTimeBorder;
         public InputField StartTimeBorderInput;
@@ -55,6 +55,8 @@ namespace Assets.Scripts.UI
 
         private float _histogramFrameWidthInSeconds = 10f;
         private int _loopGifX = 1;
+        private string _newAudio;
+        private string _currentAudioName = "Half-Life13";
 
         public void Awake()
         {
@@ -65,16 +67,17 @@ namespace Assets.Scripts.UI
         {
             InitGifsGram(_loopGifX);                               // INPUT GIF
 
-            MakeHistogramImage(SourceAudio.clip, LoopAudioX);                                  // Audio Histogram
+            MakeHistogramImage(InputAudioSource.clip, LoopAudioX);                                  // Audio Histogram
 
-            CurrentAudioLenght = SourceAudio.clip.length;
+            CurrentAudioLenght = InputAudioSource.clip.length;
+            CurrAudioSource.clip = InputAudioSource.clip;
         }
 
         public void Update()
         {
-            if (SourceAudio.isPlaying && SourceAudio.time > EndTime)
+            if (InputAudioSource.isPlaying && InputAudioSource.time > EndTime)
             {
-                SourceAudio.Stop();
+                InputAudioSource.Stop();
             }
 
             if (BordersOutCount > 1)
@@ -105,7 +108,7 @@ namespace Assets.Scripts.UI
         public void IncreaseAudioRegionLoop()
         {
             var newAudioLenght = AudioRegionDuractionTimeSec * (LoopAudioX + 1);
-            if (newAudioLenght < SourceAudio.clip.length || newAudioLenght < CutedAudio.clip?.length)
+            if (newAudioLenght < InputAudioSource.clip.length || newAudioLenght < CurrAudioSource.clip?.length)
             {
                 if (LoopAudioX < 20)
                 {
@@ -297,14 +300,14 @@ namespace Assets.Scripts.UI
         public void PlayRegion()
         {
             UpdateStartEndTimes();
-            SourceAudio.time = StartTime;
-            SourceAudio.Play();
+            CurrAudioSource.time = StartTime;
+            CurrAudioSource.Play();
         }
 
         public void CutButton()
         {
             UpdateStartEndTimes();
-            Debug.Log("CCCCCCCCCCCCC");
+
             WWW www;
 #if UNITY_EDITOR
             www = new WWW("file://" + EditorUtility.OpenFilePanel("Select a short Song", "", ""));
@@ -313,47 +316,53 @@ namespace Assets.Scripts.UI
 #else
             return;
 #endif
-            if (www == null || www.url == null)
+            if (www == null || www.url == null || www.url == "")
             {
                 return;
             }
-            CutedAudio.clip = www.GetAudioClip(false, false);
-            Debug.Log("www = " + www.url);
-            Debug.Log(" CutedAudio clip lenght = " + (CutedAudio.clip.length));
-            CutedAudio.Play();
+            CurrAudioSource.clip = www.GetAudioClip(false, false);
+            Debug.Log("CutButton: www = " + www.url);
+            Debug.Log("CutButton: CurrAudioSource clip lenght = " + (CurrAudioSource.clip.length));
 
             LoopAudioX = 1;
-            CurrentAudioLenght = AudioRegionDuractionTimeSec = CutedAudio.clip.length;
+            CurrentAudioLenght = AudioRegionDuractionTimeSec = CurrAudioSource.clip.length;
             LoopAudioX = 1;
-            MakeHistogramImage(CutedAudio.clip, LoopAudioX);
-            Debug.Log("DONE: " + StartTime + " - " + EndTime + " - " + CurrentAudioLenght);
+            MakeHistogramImage(CurrAudioSource.clip, LoopAudioX);
+            Debug.Log("CutButton done: " + StartTime + " - " + EndTime + " - " + CurrentAudioLenght);
             ResetDraggableRects();
+
+            _currentAudioName = "out" + _currentAudioName + ".mp3";
         }
 
         public string Mp3Cut(float start, float end)
         {
-            var inPath = Path.Combine(Application.persistentDataPath, InputMp3 + ".mp3");
-            var outPath = Path.Combine(Application.persistentDataPath, "out" + InputMp3 + ".mp3");
+            var inPath = Path.Combine(Application.persistentDataPath, _currentAudioName + ".mp3");
+            var outPath = Path.Combine(Application.persistentDataPath, "out" + _currentAudioName + ".mp3");
+            File.Delete(outPath);
+            Debug.Log("Mp3Cut: inPath = " + inPath);
+            Debug.Log("Mp3Cut: File exists = " + File.Exists(inPath));
+            Debug.Log("Mp3Cut: outPath = " + outPath);
             var _start = TimeSpan.FromSeconds(start).ToString(@"hh\:mm\:ss\.ff");
             var _length = TimeSpan.FromSeconds(end - start).ToString(@"hh\:mm\:ss\.ff");
-            Debug.Log("Start = " + _start + ", Length = " + _length);
-            File.Delete(outPath);
 
-            Debug.Log("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-            Debug.Log("CurrentDirectory" + Environment.CurrentDirectory);
-            Debug.Log("persistentDataPath" + Application.persistentDataPath);
-            Debug.Log("inPath = " + inPath);
-            Debug.Log("outPath = " + outPath);
-            Debug.Log("File exists = " + File.Exists(inPath));
+            var cmd = $"-ss {_start} -t {_length} -i {inPath} -acodec copy {outPath}";
+
+            return FfmpegExecute(cmd) >= 0 ? outPath : "";
+        }
+
+        public int FfmpegExecute(string cmd)
+        {
+            Debug.Log("FfmpegExecute: CurrentDirectory" + Environment.CurrentDirectory);
+            Debug.Log("FfmpegExecute: persistentDataPath" + Application.persistentDataPath);
+
             var player = new AndroidJavaClass("com.unity3d.player.UnityPlayerActivity");
             var scannery = new AndroidJavaClass("com.arthenica.mobileffmpeg.FFmpeg");
-            var cmd = $"-ss {_start} -t {_length} -i {inPath} -acodec copy {outPath}";
-            Debug.Log("command is = " + cmd);
-            var y = scannery.CallStatic<int>("execute", cmd);
-            Debug.Log("result: " + y.ToString());
-            Debug.Log("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
 
-            return outPath;
+            Debug.Log("FfmpegExecute: command is = " + cmd);
+            var res = scannery.CallStatic<int>("execute", cmd);
+            Debug.Log("FfmpegExecute: result: " + res.ToString());
+
+            return res;
         }
 
         public string Img2Mp4(string imgLabel, int frameRate)
@@ -373,7 +382,7 @@ namespace Assets.Scripts.UI
 
         public void RegionAutoSynth()
         {
-            if (GifDuractionTimeSec > SourceAudio.clip.length || GifDuractionTimeSec > CutedAudio.clip?.length)
+            if (GifDuractionTimeSec > InputAudioSource.clip.length || GifDuractionTimeSec > CurrAudioSource.clip?.length)
             {
                 Debug.Log("GifDuractionTimeSec > Audio.clip.length! This auto feature is TODO!");             // TODO
             }
@@ -392,17 +401,56 @@ namespace Assets.Scripts.UI
 
         public void AudioExtendX2()
         {
-            // дублирует аудио в два раза через ffmpeg
+            WWW www;
+            Debug.Log("AudioExtendX2: File exists = " + File.Exists(Path.Combine(Application.persistentDataPath, _currentAudioName + ".mp3")));
+#if UNITY_EDITOR
+            www = new WWW("file://" + EditorUtility.OpenFilePanel("Select a not short Song", "", ""));
+#elif UNITY_ANDROID
+            var outPath = Path.Combine(Application.persistentDataPath, "out" + _currentAudioName + ".mp3");
+            File.Delete(outPath);
+            var ret = FfmpegExecute("-i concat:" + Path.Combine(Application.persistentDataPath, _currentAudioName + ".mp3") + "|" +
+                                                                    Path.Combine(Application.persistentDataPath, _currentAudioName + ".mp3") + " -acodec copy " + outPath);
+            if ( ret < 0)
+            {   
+                Debug.Log("AudioExtendX2:  FfmpegExecute returned " + ret);
+                return;
+            }
+            www = new WWW("file://" + outPath);
+            Debug.Log("AudioExtendX2: OutFile exists = " + File.Exists(outPath));
+#else
+            return;
+#endif
+
+            if (www == null || www.url == null)
+            {
+                Debug.Log("AudioExtendX2:  www is null");
+                return;
+            }
+            CurrAudioSource.clip = www.GetAudioClip(false, false);
+            Debug.Log("AudioExtendX2:  www = " + www.url);
+            Debug.Log("AudioExtendX2: CurrAudioSource clip lenght = " + (CurrAudioSource.clip.length));
+            CurrAudioSource.Play();
+
+            LoopAudioX = 1;
+            CurrentAudioLenght = AudioRegionDuractionTimeSec = CurrAudioSource.clip.length;
+            LoopAudioX = 1;
+            MakeHistogramImage(CurrAudioSource.clip, LoopAudioX);
+            Debug.Log("AudioExtendX2 done: " + StartTime + " - " + EndTime + " - " + CurrentAudioLenght);
+            ResetDraggableRects();
+
+            _currentAudioName = "out" + _currentAudioName + ".mp3";
         }
 
         public void ResetRegion()
         {
-            var deltaTime = -1;
-            foreach (var borderInputField in BordersInputFields)
+            var deltaTime = -1f;
+            for (int i = 0; i < 2; i++)
             {
+                BordersInputFields[i].text = GifDuractionTimeSec <= 10f ? (float.Parse(CenterLabel.Time.text) + deltaTime * GifDuractionTimeSec / 4f).ToString() : (float.Parse(CenterLabel.Time.text) + deltaTime * 2f).ToString();
 
-                //borderInputField.text = CenterLabel.Time.text;
-                //HistogramRegionRectTransform.localPosition = 
+                BordersTimeBorder[i].SetTime(BordersInputFields[i].text);
+
+                deltaTime *= deltaTime;
             }
         }
 
