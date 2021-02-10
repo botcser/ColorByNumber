@@ -18,8 +18,8 @@ namespace Assets.Scripts.UI
         public Texture2D Image2;
         public Texture2D Image3;
         public Texture2D Image4;
-        public AudioSource SourceAudio;
-        public AudioSource CutedAudio;
+        public AudioSource InputAudioSource;
+        public AudioSource CurrAudioSource;
         public Image HistogramImage;
         public RectTransform HistogramWindowRectTransform;
         public RectTransform HistogramParentRectTransform;
@@ -32,13 +32,13 @@ namespace Assets.Scripts.UI
         public Text AudioRegionDuractionTimeText;
         public List<DraggableRect> DraggableRects;
         public List<MyGifFrame> InputGif;
+        public List<TimeBorder> BordersTimeBorder;
         public List<InputField> BordersInputFields;
         public GameObject ReturnBordersButton;
         public TimeBorder CenterLabel;
 
         public HorizontalLayoutGroup Gifgram;
         public GameObject GifFramePrefab;
-        public string InputMp3 = "Half-Life13";
         public Text StartTimeBorder;
         public Text EndTimeBorder;
         public InputField StartTimeBorderInput;
@@ -50,11 +50,15 @@ namespace Assets.Scripts.UI
         public static float AudioRegionDuractionTimeSec = 0f;
         public static float StartTime;
         public static float EndTime;
-        public static int BordersOutCount = 2;     // enter twice from start
+        public static int BordersOutCount = 2; // enter twice from start
         public static int LoopAudioX = 1;
 
         private float _histogramFrameWidthInSeconds = 10f;
         private int _loopGifX = 1;
+        private string _newAudio;
+        private string _currentAudioName = "Half-Life15";
+        private Texture2D _currentTexture2D;
+        private string _inputMp3Path = "";
 
         public void Awake()
         {
@@ -63,18 +67,18 @@ namespace Assets.Scripts.UI
 
         public void Start()
         {
-            InitGifsGram(_loopGifX);                               // INPUT GIF
-
-            MakeHistogramImage(SourceAudio.clip, LoopAudioX);                                  // Audio Histogram
-
-            CurrentAudioLenght = SourceAudio.clip.length;
+#if UNITY_EDITOR
+            StartDo();
+#elif UNITY_ANDROID
+            StartCoroutine(OpenReadSaveAudioFile(StartDo));
+#endif
         }
 
         public void Update()
         {
-            if (SourceAudio.isPlaying && SourceAudio.time > EndTime)
+            if (CurrAudioSource.isPlaying && CurrAudioSource.time > EndTime)
             {
-                SourceAudio.Stop();
+                CurrAudioSource.Stop();
             }
 
             if (BordersOutCount > 1)
@@ -85,6 +89,19 @@ namespace Assets.Scripts.UI
             {
                 ReturnBordersButton.SetActive(false);
             }
+        }
+
+        public void StartDo()
+        {
+#if UNITY_EDITOR
+            InitGifsGram(_loopGifX); // INPUT GIF
+            MakeHistogramImage(InputAudioSource.clip, LoopAudioX); // Audio Histogram
+
+            CurrentAudioLenght = InputAudioSource.clip.length;
+            CurrAudioSource.clip = InputAudioSource.clip;
+#elif UNITY_ANDROID
+#endif           
+
         }
 
         public void InitGifsGram(int loop)
@@ -105,7 +122,7 @@ namespace Assets.Scripts.UI
         public void IncreaseAudioRegionLoop()
         {
             var newAudioLenght = AudioRegionDuractionTimeSec * (LoopAudioX + 1);
-            if (newAudioLenght < SourceAudio.clip.length || newAudioLenght < CutedAudio.clip?.length)
+            if (newAudioLenght < InputAudioSource.clip.length || newAudioLenght < CurrAudioSource.clip?.length)
             {
                 if (LoopAudioX < 20)
                 {
@@ -125,18 +142,24 @@ namespace Assets.Scripts.UI
         public void AudioRegionExtend(float newDuractionTime)
         {
             var deltaWidth = newDuractionTime / AudioRegionDuractionTimeSec;
-            HistogramRegionRectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, HistogramRegionRectTransform.rect.width * deltaWidth);
-            HistogramRegionRectTransform.localPosition = new Vector3(HistogramRegionRectTransform.localPosition.x + HistogramRegionRectTransform.rect.width / 2 -
-                                                                     HistogramRegionRectTransform.rect.width / (2 * deltaWidth), 
+            HistogramRegionRectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal,
+                HistogramRegionRectTransform.rect.width * deltaWidth);
+            HistogramRegionRectTransform.localPosition = new Vector3(
+                HistogramRegionRectTransform.localPosition.x + HistogramRegionRectTransform.rect.width / 2 -
+                HistogramRegionRectTransform.rect.width / (2 * deltaWidth),
                 HistogramRegionRectTransform.localPosition.y, 0);
             HistogramRegionResizableRec.UpdateBorders();
             HistogramRegionResizableRec.UpdateBordersTime();
         }
 
-
         public Texture2D PaintWaveformSpectrum(AudioClip inAudio, int width, int height, Color col)
         {
-            Texture2D tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            if (_currentTexture2D != null)
+            {
+                Destroy(_currentTexture2D);
+            }
+
+            _currentTexture2D = new Texture2D(width, height, TextureFormat.RGBA32, false);
             float[] samples = new float[inAudio.samples];
             float[] waveform = new float[width];
             inAudio.GetData(samples, 0);
@@ -148,29 +171,36 @@ namespace Assets.Scripts.UI
                 s++;
             }
 
-            for (int x = 0; x < width; x++)
+            var pixelsArr = _currentTexture2D.GetPixels32();
+            for (int x = 0; x < width * height; x++)
             {
                 for (int y = 0; y < height; y++)
                 {
-                    tex.SetPixel(x, y, Color.black);
+                    _currentTexture2D.SetPixel(x, y, Color.black);
+                    //pixelsArr[x] = Color.black;
                 }
             }
 
+            //_currentTexture2D.SetPixels32(pixelsArr);
             for (int x = 0; x < waveform.Length; x++)
             {
                 for (int y = 0; y <= waveform[x] * ((float) height * .75f); y++)
                 {
-                    tex.SetPixel(x, (height / 2) + y, col);
-                    tex.SetPixel(x, (height / 2) - y, col);
+                    //pixelsArr[x + ((height / 2) + y) * (width - 1) + (height / 2) + y] = col;
+                    //pixelsArr[x + ((height / 2) - y) * (width - 1) + (height / 2) - y] = col;
+                    _currentTexture2D.SetPixel(x, (height / 2) + y, col);
+                    _currentTexture2D.SetPixel(x, (height / 2) - y, col);
                 }
             }
 
-            tex.Apply();
+            //_currentTexture2D.SetPixels32(pixelsArr);
+            _currentTexture2D.Apply();
 
-            return tex;
+            return _currentTexture2D;
         }
 
-        public void GifsGramMake(List<MyGifFrame> myGif, HorizontalLayoutGroup gifsgram, GameObject gifFramePrefab, int loop)
+        public void GifsGramMake(List<MyGifFrame> myGif, HorizontalLayoutGroup gifsgram, GameObject gifFramePrefab,
+            int loop)
         {
             GifDuractionTimeSec = 0f;
             foreach (var gif in myGif)
@@ -193,7 +223,7 @@ namespace Assets.Scripts.UI
                     //var scale = gif.Delay / GifHistogramLenghtSec;
                     var size = (int) Mathf.Sqrt((float) gif.Encoded.Length / 3);
                     //var sizeDelay = GifgramRect.rect.width * gif.Delay / GifHistogramLenghtSec;
-                    var tex = new Texture2D((int)size, (int)size, TextureFormat.RGB24, false)
+                    var tex = new Texture2D((int) size, (int) size, TextureFormat.RGB24, false)
                         {filterMode = FilterMode.Point};
                     var sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), Vector2.one / 2);
                     tex.LoadRawTextureData(gif.Encoded);
@@ -202,6 +232,7 @@ namespace Assets.Scripts.UI
                     gifFramePrefab.GetComponent<Image>().sprite = sprite;
                     Instantiate(gifFramePrefab, gifsgram.transform);
                 }
+
                 loop--;
             } while (loop > 0);
         }
@@ -217,7 +248,8 @@ namespace Assets.Scripts.UI
 
         public bool MakeHistogramImage(AudioClip inputClip, int loop)
         {
-            HistogramImage.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, HistogramWindowRectTransform.rect.height);
+            HistogramImage.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,
+                HistogramWindowRectTransform.rect.height);
             var histogramTexture = PaintWaveformSpectrum(inputClip, (int) GetHistogramWidth(inputClip),
                 (int) HistogramImage.rectTransform.rect.height, Color.green);
             if (histogramTexture == null)
@@ -262,10 +294,9 @@ namespace Assets.Scripts.UI
         {
             if (music.length >= _histogramFrameWidthInSeconds)
             {
-                var delta = music.length - _histogramFrameWidthInSeconds;
-                var secondWidth = HistogramParentRectTransform.rect.width / _histogramFrameWidthInSeconds;
+                var delta = music.length / _histogramFrameWidthInSeconds;
                 HistogramImage.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal,
-                    HistogramParentRectTransform.rect.width + secondWidth * delta);
+                    HistogramParentRectTransform.rect.width * delta);
                 return HistogramImage.rectTransform.rect.width;
             }
             else
@@ -290,6 +321,7 @@ namespace Assets.Scripts.UI
                 StartTime = time1;
                 EndTime = time2;
             }
+
             AudioRegionDuractionTimeSec = EndTime - StartTime;
             Instance.AudioRegionDuractionTimeText.text = AudioRegionDuractionTimeSec.ToString("00.00");
         }
@@ -297,14 +329,14 @@ namespace Assets.Scripts.UI
         public void PlayRegion()
         {
             UpdateStartEndTimes();
-            SourceAudio.time = StartTime;
-            SourceAudio.Play();
+            CurrAudioSource.time = StartTime;
+            CurrAudioSource.Play();
         }
 
         public void CutButton()
         {
             UpdateStartEndTimes();
-            Debug.Log("CCCCCCCCCCCCC");
+
             WWW www;
 #if UNITY_EDITOR
             www = new WWW("file://" + EditorUtility.OpenFilePanel("Select a short Song", "", ""));
@@ -313,47 +345,103 @@ namespace Assets.Scripts.UI
 #else
             return;
 #endif
-            if (www == null || www.url == null)
+            if (www == null || www.url == null || www.url == "")
             {
                 return;
             }
-            CutedAudio.clip = www.GetAudioClip(false, false);
-            Debug.Log("www = " + www.url);
-            Debug.Log(" CutedAudio clip lenght = " + (CutedAudio.clip.length));
-            CutedAudio.Play();
 
-            LoopAudioX = 1;
-            CurrentAudioLenght = AudioRegionDuractionTimeSec = CutedAudio.clip.length;
-            LoopAudioX = 1;
-            MakeHistogramImage(CutedAudio.clip, LoopAudioX);
-            Debug.Log("DONE: " + StartTime + " - " + EndTime + " - " + CurrentAudioLenght);
-            ResetDraggableRects();
+            StartCoroutine(LoadAudioClip(www, CurrAudioSource));
+
+            Debug.Log("CutButton: www = " + www.url);
+            Debug.Log("CutButton: CurrAudioSource clip lenght = " + (CurrAudioSource.clip.length));
+            Debug.Log("CutButton done: " + StartTime + " - " + EndTime + " - " + CurrentAudioLenght);
+        }
+
+        IEnumerator LoadAudioClip(WWW wwwFile, AudioSource audioSource)
+        {
+            audioSource.clip = wwwFile.GetAudioClip(false, false);
+            var _try = 3;
+
+            do
+            {
+                if (audioSource.clip == null)
+                {
+                    yield return new WaitForSeconds(2f);
+                    _try--;
+                }
+                else
+                {
+                    if (audioSource.clip.loadState != AudioDataLoadState.Loaded)
+                    {
+                        yield return new WaitForSeconds(2f);
+                        _try--;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            } while (_try > 0);
+
+            if (audioSource.clip.length > 0)
+            {
+                _currentAudioName = "out" + _currentAudioName + ".mp3";
+                CurrAudioSource.clip = MakeMonoAudioClip(audioSource.clip, _currentAudioName);
+                LoopAudioX = 1;
+                LoopAudioX = 1;
+                CurrentAudioLenght = AudioRegionDuractionTimeSec = CurrAudioSource.clip.length;
+                MakeHistogramImage(CurrAudioSource.clip, LoopAudioX);
+                ResetDraggableRects();
+            }
+        }
+
+        public AudioClip MakeMonoAudioClip(AudioClip audioClip, string name)
+        {
+            AudioClip newAudioClip =
+                AudioClip.Create(name, audioClip.samples, audioClip.channels, audioClip.frequency, false);
+            float[] copyData = new float[audioClip.samples * audioClip.channels];
+            audioClip.GetData(copyData, 0);
+
+            List<float> monoData = new List<float>();
+            for (int i = 0; i < copyData.Length; i += 2)
+            {
+                monoData.Add(copyData[i]);
+            }
+
+            newAudioClip.SetData(monoData.ToArray(), 0);
+
+            return newAudioClip;
         }
 
         public string Mp3Cut(float start, float end)
         {
-            var inPath = Path.Combine(Application.persistentDataPath, InputMp3 + ".mp3");
-            var outPath = Path.Combine(Application.persistentDataPath, "out" + InputMp3 + ".mp3");
+            var inPath = Path.Combine(Application.persistentDataPath, _currentAudioName + ".mp3");
+            var outPath = Path.Combine(Application.persistentDataPath, "out" + _currentAudioName + ".mp3");
+            File.Delete(outPath);
+            Debug.Log("Mp3Cut: inPath = " + inPath);
+            Debug.Log("Mp3Cut: File exists = " + File.Exists(inPath));
+            Debug.Log("Mp3Cut: outPath = " + outPath);
             var _start = TimeSpan.FromSeconds(start).ToString(@"hh\:mm\:ss\.ff");
             var _length = TimeSpan.FromSeconds(end - start).ToString(@"hh\:mm\:ss\.ff");
-            Debug.Log("Start = " + _start + ", Length = " + _length);
-            File.Delete(outPath);
 
-            Debug.Log("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-            Debug.Log("CurrentDirectory" + Environment.CurrentDirectory);
-            Debug.Log("persistentDataPath" + Application.persistentDataPath);
-            Debug.Log("inPath = " + inPath);
-            Debug.Log("outPath = " + outPath);
-            Debug.Log("File exists = " + File.Exists(inPath));
+            var cmd = $"-ss {_start} -t {_length} -i {inPath} -acodec copy {outPath}";
+
+            return FfmpegExecute(cmd) >= 0 ? outPath : "";
+        }
+
+        public int FfmpegExecute(string cmd)
+        {
+            Debug.Log("FfmpegExecute: CurrentDirectory" + Environment.CurrentDirectory);
+            Debug.Log("FfmpegExecute: persistentDataPath" + Application.persistentDataPath);
+
             var player = new AndroidJavaClass("com.unity3d.player.UnityPlayerActivity");
             var scannery = new AndroidJavaClass("com.arthenica.mobileffmpeg.FFmpeg");
-            var cmd = $"-ss {_start} -t {_length} -i {inPath} -acodec copy {outPath}";
-            Debug.Log("command is = " + cmd);
-            var y = scannery.CallStatic<int>("execute", cmd);
-            Debug.Log("result: " + y.ToString());
-            Debug.Log("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
 
-            return outPath;
+            Debug.Log("FfmpegExecute: command is = " + cmd);
+            var res = scannery.CallStatic<int>("execute", cmd);
+            Debug.Log("FfmpegExecute: result: " + res.ToString());
+
+            return res;
         }
 
         public string Img2Mp4(string imgLabel, int frameRate)
@@ -373,14 +461,16 @@ namespace Assets.Scripts.UI
 
         public void RegionAutoSynth()
         {
-            if (GifDuractionTimeSec > SourceAudio.clip.length || GifDuractionTimeSec > CutedAudio.clip?.length)
+            if (GifDuractionTimeSec > InputAudioSource.clip.length ||
+                GifDuractionTimeSec > CurrAudioSource.clip?.length)
             {
-                Debug.Log("GifDuractionTimeSec > Audio.clip.length! This auto feature is TODO!");             // TODO
+                Debug.Log("GifDuractionTimeSec > Audio.clip.length! This auto feature is TODO!"); // TODO
             }
             else
             {
                 var deltaTime = GifDuractionTimeSec / AudioRegionDuractionTimeSec;
-                HistogramRegionRectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, HistogramRegionRectTransform.rect.width * deltaTime);
+                HistogramRegionRectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal,
+                    HistogramRegionRectTransform.rect.width * deltaTime);
                 HistogramRegionResizableRec.UpdateBorders();
             }
         }
@@ -392,19 +482,123 @@ namespace Assets.Scripts.UI
 
         public void AudioExtendX2()
         {
-            // дублирует аудио в два раза через ffmpeg
+            WWW www;
+            Debug.Log("AudioExtendX2: File exists = " +
+                      File.Exists(Path.Combine(Application.persistentDataPath, _currentAudioName + ".mp3")));
+#if UNITY_EDITOR
+            www = new WWW("file://" + EditorUtility.OpenFilePanel("Select a not short Song", "", ""));
+#elif UNITY_ANDROID
+            var outPath = Path.Combine(Application.persistentDataPath, "out" + _currentAudioName + ".mp3");
+            File.Delete(outPath);
+            var ret =
+ FfmpegExecute("-i concat:" + Path.Combine(Application.persistentDataPath, _currentAudioName + ".mp3") + "|" +
+                                                                    Path.Combine(Application.persistentDataPath, _currentAudioName + ".mp3") + " -acodec copy " + outPath);
+            if ( ret < 0)
+            {   
+                Debug.Log("AudioExtendX2:  FfmpegExecute returned " + ret);
+                return;
+            }
+            www = new WWW("file://" + outPath);
+            Debug.Log("AudioExtendX2: OutFile exists = " + File.Exists(outPath));
+#else
+            return;
+#endif
+
+            if (www == null || www.url == null)
+            {
+                Debug.Log("AudioExtendX2:  www is null");
+                return;
+            }
+
+            CurrAudioSource.clip = www.GetAudioClip(false, false);
+            Debug.Log("AudioExtendX2:  www = " + www.url);
+            Debug.Log("AudioExtendX2: CurrAudioSource clip lenght = " + (CurrAudioSource.clip.length));
+            CurrAudioSource.Play();
+
+            LoopAudioX = 1;
+            CurrentAudioLenght = AudioRegionDuractionTimeSec = CurrAudioSource.clip.length;
+            LoopAudioX = 1;
+            MakeHistogramImage(CurrAudioSource.clip, LoopAudioX);
+            Debug.Log("AudioExtendX2 done: " + StartTime + " - " + EndTime + " - " + CurrentAudioLenght);
+            ResetDraggableRects();
+
+            _currentAudioName = "out" + _currentAudioName + ".mp3";
         }
 
         public void ResetRegion()
         {
-            var deltaTime = -1;
-            foreach (var borderInputField in BordersInputFields)
+            var deltaTime = -1f;
+            for (int i = 0; i < 2; i++)
             {
+                BordersInputFields[i].text = GifDuractionTimeSec <= 10f
+                    ? (float.Parse(CenterLabel.TimeInput.text) + deltaTime * GifDuractionTimeSec / 4f).ToString()
+                    : (float.Parse(CenterLabel.TimeInput.text) + deltaTime * 2f).ToString();
 
-                //borderInputField.text = CenterLabel.Time.text;
-                //HistogramRegionRectTransform.localPosition = 
+                BordersTimeBorder[i].SetTime(BordersInputFields[i].text);
+
+                deltaTime *= deltaTime;
             }
         }
 
+        public byte[] LoadBytesFromResoursesTxt(string path)
+        {
+            TextAsset file = Resources.Load(path) as TextAsset;
+            if (file != null)
+            {
+                return file.bytes;
+            }
+
+            return null;
+        }
+
+        public void SaveFile(byte[] bytes, string prefix)
+        {
+            Stream stream = new MemoryStream(bytes);
+            BinaryWriter binaryWriter;
+#if UNITY_EDITOR
+            binaryWriter = new BinaryWriter(File.Open(EditorUtility.SaveFilePanel("Select to save", "", "", "mp3"),
+                FileMode.Create));
+#elif UNITY_ANDROID
+            var outPath = Path.Combine(Application.persistentDataPath, prefix + _currentAudioName + ".mp3");
+            File.Delete(outPath);
+            Debug.Log("SaveFile: OutFile outPath exists = " + File.Exists(outPath) + " :: " + outPath);
+            binaryWriter = new BinaryWriter(File.Open(outPath, FileMode.Create));
+#endif
+            binaryWriter.Write(bytes);
+            binaryWriter.Close();
+        }
+
+        IEnumerator OpenReadSaveAudioFile(Action Do)
+        {
+            if (!NativeFilePicker.IsFilePickerBusy())
+            {
+                var mp3FileType = NativeFilePicker.ConvertExtensionToFileType("mp3");
+                Debug.Log("mp3's MIME/UTI is: " + mp3FileType);
+
+
+                NativeFilePicker.Permission permission = NativeFilePicker.PickFile((_path) =>
+                {
+                    if (_path == null)
+                    {
+                        Debug.Log("Operation cancelled");
+                    }
+                    else
+                    {
+                        Debug.Log("Picked file: " + _path);
+                        _inputMp3Path = _path;
+                    }
+                }, new string[] {mp3FileType});
+
+                yield return new WaitForSeconds(1f);
+                Debug.Log("OpenReadAudioFile: path result: " + _inputMp3Path);
+                if (_inputMp3Path != null || _inputMp3Path != "")
+                {
+                    SaveFile(File.ReadAllBytes(_inputMp3Path), "");
+                    Do();
+                }
+            }
+        }
     }
+
 }
+

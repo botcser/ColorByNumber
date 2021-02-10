@@ -12,7 +12,7 @@ namespace Assets.AudioCrop
         public RectTransform ParentRectTransform;
         public ResizableRect RegionResizableRect;
         public InputField TimeInput;
-        public Text Time;
+        //public Text Time;
 
         private bool _oneTime = true;
         private bool isKeyReturnDawn = false;
@@ -40,9 +40,18 @@ namespace Assets.AudioCrop
             }
         }
 
+        public void InputFieldOnSubmit(BaseEventData eventData)         
+        {
+            if (SetTime())
+            {
+                return;
+            }
+            TimeInput.text = _oldText;
+        }
+
         public void CheckIsEdited(InputField timeField)
         {
-            if (Input.GetKey(KeyCode.Return) && SetTime())
+            if ((Input.GetKey(KeyCode.Return) || Input.GetKey(KeyCode.KeypadEnter)) && SetTime())
             {
                 return;
             }
@@ -66,7 +75,7 @@ namespace Assets.AudioCrop
             {
                 var time = Gif2mp4Panel.CurrentAudioLenght * (-ParentRectTransform.anchoredPosition.x
                                                               + HistogramRectTransform.rect.width / 2) / HistogramRectTransform.rect.width;
-                Time.text = time.ToString("00.00");
+                //Time.text = time.ToString("00.00");
             }
         }
 
@@ -74,6 +83,26 @@ namespace Assets.AudioCrop
         {
             TimeInput.text = TimeInput.text.Replace('.', ',');
             var time = float.Parse(TimeInput.text);
+
+            if (time < 0 || time > Gif2mp4Panel.CurrentAudioLenght)
+            {
+                return false;
+            }
+            var newPosX = time * HistogramRectTransform.rect.width / Gif2mp4Panel.CurrentAudioLenght -
+                          HistogramRectTransform.rect.width / 2;
+
+            ParentRectTransform.anchoredPosition = new Vector2(newPosX, ParentRectTransform.anchoredPosition.y);
+
+            RegionResizableRect.UpdateSize();
+            Gif2mp4Panel.UpdateStartEndTimes();
+            Gif2mp4Panel.LoopAudioX = 1;
+            return true;
+        }
+
+        public bool SetTime(string newTime)
+        {
+            newTime = newTime.Replace('.', ',');
+            var time = float.Parse(newTime);
 
             if (time < 0 || time > Gif2mp4Panel.CurrentAudioLenght)
             {
