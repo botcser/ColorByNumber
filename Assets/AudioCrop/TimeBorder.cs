@@ -12,7 +12,7 @@ namespace Assets.AudioCrop
         public RectTransform ParentRectTransform;
         public ResizableRect RegionResizableRect;
         public InputField TimeInput;
-        public Text Time;
+        //public Text Time;
 
         private bool _oneTime = true;
         private bool isKeyReturnDawn = false;
@@ -38,6 +38,15 @@ namespace Assets.AudioCrop
                 UpdateTime();
                 _oneTime = false;
             }
+        }
+
+        public void InputFieldOnSubmit(BaseEventData eventData)         
+        {
+            if (SetTime())
+            {
+                return;
+            }
+            TimeInput.text = _oldText;
         }
 
         public void CheckIsEdited(InputField timeField)
@@ -66,7 +75,7 @@ namespace Assets.AudioCrop
             {
                 var time = Gif2mp4Panel.CurrentAudioLenght * (-ParentRectTransform.anchoredPosition.x
                                                               + HistogramRectTransform.rect.width / 2) / HistogramRectTransform.rect.width;
-                Time.text = time.ToString("00.00");
+                //Time.text = time.ToString("00.00");
             }
         }
 
