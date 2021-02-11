@@ -11,11 +11,10 @@ namespace Assets.AudioCrop
         public RectTransform HistogramRectTransform;
         public RectTransform ParentRectTransform;
         public ResizableRect RegionResizableRect;
-        public InputField TimeInput;
-        //public Text Time;
+        public InputField TimeInput;        // for boarders InputField
+        public Text TimeText;               // for CenterLabel
 
         private bool _oneTime = true;
-        private bool isKeyReturnDawn = false;
         private string _oldText;
 
         public void Start()
@@ -75,7 +74,7 @@ namespace Assets.AudioCrop
             {
                 var time = Gif2mp4Panel.CurrentAudioLenght * (-ParentRectTransform.anchoredPosition.x
                                                               + HistogramRectTransform.rect.width / 2) / HistogramRectTransform.rect.width;
-                //Time.text = time.ToString("00.00");
+                TimeText.text = time.ToString("00.00");
             }
         }
 

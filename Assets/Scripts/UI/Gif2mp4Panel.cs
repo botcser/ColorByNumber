@@ -56,7 +56,7 @@ namespace Assets.Scripts.UI
         private float _histogramFrameWidthInSeconds = 10f;
         private int _loopGifX = 1;
         private string _newAudio;
-        private string _currentAudioName = "Half-Life15";
+        private string _currentAudioName;
         private Texture2D _currentTexture2D;
         private string _inputMp3Path = "";
 
@@ -67,6 +67,7 @@ namespace Assets.Scripts.UI
 
         public void Start()
         {
+            _currentAudioName = InputAudioSource.clip.name;
 #if UNITY_EDITOR
             StartDo();
 #elif UNITY_ANDROID
@@ -94,8 +95,9 @@ namespace Assets.Scripts.UI
         public void StartDo()
         {
 #if UNITY_EDITOR
-            InitGifsGram(_loopGifX); // INPUT GIF
-            MakeHistogramImage(InputAudioSource.clip, LoopAudioX); // Audio Histogram
+            InitGifsGram(_loopGifX);                                    // INPUT GIF
+
+            MakeHistogramImage(InputAudioSource.clip, LoopAudioX);      // Audio Histogram
 
             CurrentAudioLenght = InputAudioSource.clip.length;
             CurrAudioSource.clip = InputAudioSource.clip;
@@ -174,26 +176,28 @@ namespace Assets.Scripts.UI
             var pixelsArr = _currentTexture2D.GetPixels32();
             for (int x = 0; x < width * height; x++)
             {
-                for (int y = 0; y < height; y++)
-                {
-                    _currentTexture2D.SetPixel(x, y, Color.black);
-                    //pixelsArr[x] = Color.black;
-                }
+                //for (int y = 0; y < height; y++)
+                //{
+                    //_currentTexture2D.SetPixel(x, y, Color.black);
+                    pixelsArr[x] = Color.black;
+                //}
             }
-
-            //_currentTexture2D.SetPixels32(pixelsArr);
+            
+            _currentTexture2D.SetPixels32(pixelsArr);
             for (int x = 0; x < waveform.Length; x++)
             {
-                for (int y = 0; y <= waveform[x] * ((float) height * .75f); y++)
+                for (int y = 0; y <= waveform[x] * ((float) height * .5f); y++)
                 {
-                    //pixelsArr[x + ((height / 2) + y) * (width - 1) + (height / 2) + y] = col;
-                    //pixelsArr[x + ((height / 2) - y) * (width - 1) + (height / 2) - y] = col;
-                    _currentTexture2D.SetPixel(x, (height / 2) + y, col);
-                    _currentTexture2D.SetPixel(x, (height / 2) - y, col);
+                    var newYpos = (height / 2) + y;
+                    var newYneg = (height / 2) - y;
+                    pixelsArr[x + newYpos * waveform.Length] = col;
+                    pixelsArr[x + newYneg * waveform.Length] = col;
+                    //_currentTexture2D.SetPixel(x, (height / 2) + y, col);
+                    //_currentTexture2D.SetPixel(x, (height / 2) - y, col);
                 }
             }
 
-            //_currentTexture2D.SetPixels32(pixelsArr);
+            _currentTexture2D.SetPixels32(pixelsArr);
             _currentTexture2D.Apply();
 
             return _currentTexture2D;
@@ -250,7 +254,8 @@ namespace Assets.Scripts.UI
         {
             HistogramImage.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,
                 HistogramWindowRectTransform.rect.height);
-            var histogramTexture = PaintWaveformSpectrum(inputClip, (int) GetHistogramWidth(inputClip),
+            var x = GetHistogramWidth(inputClip);
+            var histogramTexture = PaintWaveformSpectrum(inputClip, (int) x,
                 (int) HistogramImage.rectTransform.rect.height, Color.green);
             if (histogramTexture == null)
             {
@@ -531,8 +536,8 @@ namespace Assets.Scripts.UI
             for (int i = 0; i < 2; i++)
             {
                 BordersInputFields[i].text = GifDuractionTimeSec <= 10f
-                    ? (float.Parse(CenterLabel.TimeInput.text) + deltaTime * GifDuractionTimeSec / 4f).ToString()
-                    : (float.Parse(CenterLabel.TimeInput.text) + deltaTime * 2f).ToString();
+                    ? (float.Parse(CenterLabel.TimeText.text) + deltaTime * GifDuractionTimeSec / 4f).ToString()
+                    : (float.Parse(CenterLabel.TimeText.text) + deltaTime * 2f).ToString();
 
                 BordersTimeBorder[i].SetTime(BordersInputFields[i].text);
 

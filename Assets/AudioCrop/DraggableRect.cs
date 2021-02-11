@@ -25,8 +25,14 @@ namespace Assets.AudioCrop
         private float _deltaX;
         private float _startRegionPosX;
         private int _cycleSign = -1;
+        private string _myTag;
 
         public static Vector2 _position_delta;
+
+        public void Start()
+        {
+            _myTag = this.gameObject.tag;
+        }
 
         public void Update()
         {
@@ -43,9 +49,9 @@ namespace Assets.AudioCrop
             RectTransformUtility.ScreenPointToLocalPointInRectangle(ParentRectTransform, eventData.position, null, out _pointer); // The cam parameter should be the camera associated with the screen point. For a RectTransform in a Canvas set to Screen Space - Overlay mode, the cam parameter should be null.
         }
 
-        void OnTriggerExit2D(Collider2D collisionInfo)
+        void OnTriggerExit2D(Collider2D collisionInfo)                          //
         {
-            if (collisionInfo.tag != "border")
+            if (_myTag == "Region" || collisionInfo.tag == "HistogramWindow")
             {
                 if (AnchorRectTransform != null)
                 {
@@ -58,9 +64,9 @@ namespace Assets.AudioCrop
             }
         }
 
-        void OnTriggerEnter2D(Collider2D collisionInfo)
+        void OnTriggerEnter2D(Collider2D collisionInfo)                         // Region enter to HistogramWindow
         {
-            if (collisionInfo.tag != "border")
+            if (_myTag == "Region" || collisionInfo.tag == "HistogramWindow")
             {
                 DragCallback?.Invoke();
                 _onTriggerCheck = false;
