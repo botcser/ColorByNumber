@@ -20,6 +20,7 @@ namespace Assets.Scripts.UI
         public Texture2D Image4;
         public AudioSource InputAudioSource;
         public AudioSource CurrAudioSource;
+        public AudioClip CloneAudioClip;
         public Image HistogramImage;
         public RectTransform HistogramWindowRectTransform;
         public RectTransform HistogramParentRectTransform;
@@ -176,11 +177,7 @@ namespace Assets.Scripts.UI
             var pixelsArr = _currentTexture2D.GetPixels32();
             for (int x = 0; x < width * height; x++)
             {
-                //for (int y = 0; y < height; y++)
-                //{
-                    //_currentTexture2D.SetPixel(x, y, Color.black);
                     pixelsArr[x] = Color.black;
-                //}
             }
             
             _currentTexture2D.SetPixels32(pixelsArr);
@@ -192,8 +189,6 @@ namespace Assets.Scripts.UI
                     var newYneg = (height / 2) - y;
                     pixelsArr[x + newYpos * waveform.Length] = col;
                     pixelsArr[x + newYneg * waveform.Length] = col;
-                    //_currentTexture2D.SetPixel(x, (height / 2) + y, col);
-                    //_currentTexture2D.SetPixel(x, (height / 2) - y, col);
                 }
             }
 
@@ -338,7 +333,17 @@ namespace Assets.Scripts.UI
             CurrAudioSource.Play();
         }
 
-        public void CutButton()
+        public void HistorgamCutButton()                         
+        {
+            FfmpegCall(AudioCut);
+        }
+
+        public void HistorgamExtendX2Button()                     // DEP
+        {
+            FfmpegCall(AudioExtendX2);
+        }
+
+        public void FfmpegCall(Func<string> Do)
         {
             UpdateStartEndTimes();
 
@@ -346,20 +351,17 @@ namespace Assets.Scripts.UI
 #if UNITY_EDITOR
             www = new WWW("file://" + EditorUtility.OpenFilePanel("Select a short Song", "", ""));
 #elif UNITY_ANDROID
-            www = new WWW("file://" + Mp3Cut(StartTime, EndTime));
+            www = new WWW("file://" + Do());                            // вызов ffmpeg
 #else
             return;
 #endif
-            if (www == null || www.url == null || www.url == "")
+            if (www == null || string.IsNullOrEmpty(www.url))
             {
-                return;
+                Debug.Log("FfmpegCall: Do returned null");      // ffmpeg fail
             }
 
-            StartCoroutine(LoadAudioClip(www, CurrAudioSource));
-
-            Debug.Log("CutButton: www = " + www.url);
-            Debug.Log("CutButton: CurrAudioSource clip lenght = " + (CurrAudioSource.clip.length));
-            Debug.Log("CutButton done: " + StartTime + " - " + EndTime + " - " + CurrentAudioLenght);
+            Debug.Log("FfmpegCall: www = " + www.url);
+            StartCoroutine(GetAudioClip(www.url));                 // загрузка результатов ffmpeg
         }
 
         IEnumerator LoadAudioClip(WWW wwwFile, AudioSource audioSource)
@@ -391,12 +393,16 @@ namespace Assets.Scripts.UI
             if (audioSource.clip.length > 0)
             {
                 _currentAudioName = "out" + _currentAudioName + ".mp3";
-                CurrAudioSource.clip = MakeMonoAudioClip(audioSource.clip, _currentAudioName);
+                CloneAudioClip = MakeMonoAudioClip(audioSource.clip, _currentAudioName);
+                CurrAudioSource.clip = audioSource.clip;
                 LoopAudioX = 1;
                 LoopAudioX = 1;
                 CurrentAudioLenght = AudioRegionDuractionTimeSec = CurrAudioSource.clip.length;
-                MakeHistogramImage(CurrAudioSource.clip, LoopAudioX);
+                MakeHistogramImage(CloneAudioClip, LoopAudioX);
                 ResetDraggableRects();
+
+                Debug.Log("CutButton: CurrAudioSource clip lenght = " + (CurrAudioSource.clip.length));
+                Debug.Log("CutButton done: " + StartTime + " - " + EndTime + " - " + CurrentAudioLenght);
             }
         }
 
@@ -418,20 +424,21 @@ namespace Assets.Scripts.UI
             return newAudioClip;
         }
 
-        public string Mp3Cut(float start, float end)
+        private string AudioCut()
         {
-            var inPath = Path.Combine(Application.persistentDataPath, _currentAudioName + ".mp3");
             var outPath = Path.Combine(Application.persistentDataPath, "out" + _currentAudioName + ".mp3");
+
             File.Delete(outPath);
-            Debug.Log("Mp3Cut: inPath = " + inPath);
-            Debug.Log("Mp3Cut: File exists = " + File.Exists(inPath));
+
+            Debug.Log("Mp3Cut: inPath = " + _inputMp3Path);
             Debug.Log("Mp3Cut: outPath = " + outPath);
-            var _start = TimeSpan.FromSeconds(start).ToString(@"hh\:mm\:ss\.ff");
-            var _length = TimeSpan.FromSeconds(end - start).ToString(@"hh\:mm\:ss\.ff");
 
-            var cmd = $"-ss {_start} -t {_length} -i {inPath} -acodec copy {outPath}";
+            var _start = TimeSpan.FromSeconds(StartTime).ToString(@"hh\:mm\:ss\.ff");
+            var _length = TimeSpan.FromSeconds(EndTime - StartTime).ToString(@"hh\:mm\:ss\.ff");
 
-            return FfmpegExecute(cmd) >= 0 ? outPath : "";
+            var cmd = $"-ss {_start} -t {_length} -i {_inputMp3Path} -acodec copy {outPath}";
+
+            return FfmpegExecute(cmd) == 0 ? outPath : "";
         }
 
         public int FfmpegExecute(string cmd)
@@ -485,49 +492,14 @@ namespace Assets.Scripts.UI
             // расширяет аудио до размера гиф через ffmpeg
         }
 
-        public void AudioExtendX2()
+        private string AudioExtendX2()
         {
-            WWW www;
-            Debug.Log("AudioExtendX2: File exists = " +
-                      File.Exists(Path.Combine(Application.persistentDataPath, _currentAudioName + ".mp3")));
-#if UNITY_EDITOR
-            www = new WWW("file://" + EditorUtility.OpenFilePanel("Select a not short Song", "", ""));
-#elif UNITY_ANDROID
-            var outPath = Path.Combine(Application.persistentDataPath, "out" + _currentAudioName + ".mp3");
+            var outPath = Path.Combine(Application.persistentDataPath, "out" + _inputMp3Path + ".mp3");
             File.Delete(outPath);
-            var ret =
- FfmpegExecute("-i concat:" + Path.Combine(Application.persistentDataPath, _currentAudioName + ".mp3") + "|" +
-                                                                    Path.Combine(Application.persistentDataPath, _currentAudioName + ".mp3") + " -acodec copy " + outPath);
-            if ( ret < 0)
-            {   
-                Debug.Log("AudioExtendX2:  FfmpegExecute returned " + ret);
-                return;
-            }
-            www = new WWW("file://" + outPath);
-            Debug.Log("AudioExtendX2: OutFile exists = " + File.Exists(outPath));
-#else
-            return;
-#endif
 
-            if (www == null || www.url == null)
-            {
-                Debug.Log("AudioExtendX2:  www is null");
-                return;
-            }
-
-            CurrAudioSource.clip = www.GetAudioClip(false, false);
-            Debug.Log("AudioExtendX2:  www = " + www.url);
-            Debug.Log("AudioExtendX2: CurrAudioSource clip lenght = " + (CurrAudioSource.clip.length));
-            CurrAudioSource.Play();
-
-            LoopAudioX = 1;
-            CurrentAudioLenght = AudioRegionDuractionTimeSec = CurrAudioSource.clip.length;
-            LoopAudioX = 1;
-            MakeHistogramImage(CurrAudioSource.clip, LoopAudioX);
-            Debug.Log("AudioExtendX2 done: " + StartTime + " - " + EndTime + " - " + CurrentAudioLenght);
-            ResetDraggableRects();
-
-            _currentAudioName = "out" + _currentAudioName + ".mp3";
+            return FfmpegExecute("-i concat:" + _inputMp3Path + "|" + _inputMp3Path + " -acodec copy " + outPath) == 0
+                ? outPath
+                : "";
         }
 
         public void ResetRegion()
@@ -573,35 +545,67 @@ namespace Assets.Scripts.UI
             binaryWriter.Close();
         }
 
-        IEnumerator OpenReadSaveAudioFile(Action Do)
+        public void OpenReadAudioFile()
         {
-            if (!NativeFilePicker.IsFilePickerBusy())
+            var path = PickFile();
+            if (!string.IsNullOrEmpty(path))
             {
-                var mp3FileType = NativeFilePicker.ConvertExtensionToFileType("mp3");
-                Debug.Log("mp3's MIME/UTI is: " + mp3FileType);
+                _inputMp3Path = path;
+                StartCoroutine(GetAudioClip(_inputMp3Path));
+            }
+        }
 
-
-                NativeFilePicker.Permission permission = NativeFilePicker.PickFile((_path) =>
+        public string PickFile()
+        {
+            var ret= "";
+            var mp3FileType = NativeFilePicker.ConvertExtensionToFileType("mp3");
+            var permission = NativeFilePicker.PickFile(path =>
+            {
+                if (path == null)
                 {
-                    if (_path == null)
-                    {
-                        Debug.Log("Operation cancelled");
-                    }
-                    else
-                    {
-                        Debug.Log("Picked file: " + _path);
-                        _inputMp3Path = _path;
-                    }
-                }, new string[] {mp3FileType});
-
-                yield return new WaitForSeconds(1f);
-                Debug.Log("OpenReadAudioFile: path result: " + _inputMp3Path);
-                if (_inputMp3Path != null || _inputMp3Path != "")
+                    Debug.Log("PickFile: Operation cancelled");
+                }
+                else
                 {
-                    SaveFile(File.ReadAllBytes(_inputMp3Path), "");
-                    Do();
+                    Debug.Log("PickFile: path = " + path);
+                    ret = path;
+                }
+            }, new string[] { mp3FileType });
+
+            Debug.Log("PickFile: permission = " + permission);
+            return ret;
+        }
+
+        private IEnumerator GetAudioClip(string path)
+        {
+            using (var www = UnityWebRequestMultimedia.GetAudioClip($"{path}", AudioType.MPEG))
+            {
+                yield return www.SendWebRequest();
+
+                if (www.isHttpError || www.isNetworkError)
+                {
+                    Debug.Log("GetAudioClip: " + www.error);
+                }
+                else
+                {
+                    var clip = DownloadHandlerAudioClip.GetContent(www);
+
+                    Debug.Log("GetAudioClip: GetContent bytes " + clip.length);
+
+                    _currentAudioName = "out" + _currentAudioName + ".mp3";
+                    CloneAudioClip = MakeMonoAudioClip(clip, _currentAudioName);
+                    CurrAudioSource.clip = clip;
+                    LoopAudioX = 1;
+                    LoopAudioX = 1;
+                    CurrentAudioLenght = AudioRegionDuractionTimeSec = CurrAudioSource.clip.length;
+                    MakeHistogramImage(CloneAudioClip, LoopAudioX);
+                    ResetDraggableRects();
+
+                    Debug.Log("GetAudioClip: CurrAudioSource clip lenght = " + (CurrAudioSource.clip.length));
+                    Debug.Log("GetAudioClip done: " + StartTime + " - " + EndTime + " - " + CurrentAudioLenght);
                 }
             }
+
         }
     }
 
