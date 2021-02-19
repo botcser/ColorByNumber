@@ -37,10 +37,10 @@ namespace Assets.Scripts.UI
         public List<TimeBorder> BordersTimeBorder;
         public List<InputField> BordersInputFields;
         public GameObject ReturnBordersButton;
+        public GameObject GifFramePrefab;
         public TimeBorder CenterLabel;
 
         public HorizontalLayoutGroup Gifgram;
-        public GameObject GifFramePrefab;
         public Text StartTimeBorder;
         public Text EndTimeBorder;
         public InputField StartTimeBorderInput;
@@ -69,11 +69,7 @@ namespace Assets.Scripts.UI
 
         public void Start()
         {
-#if UNITY_EDITOR
             StartDo();
-#elif UNITY_ANDROID
-            OpenReadAudioFile();
-#endif
         }
 
         public void Update()
@@ -101,7 +97,13 @@ namespace Assets.Scripts.UI
 
             CurrentAudioLenght = InputAudioSource.clip.length;
             CurrAudioSource.clip = InputAudioSource.clip;
-            _outAudioName = InputAudioSource.clip.name;
+
+#if UNITY_EDITOR
+#elif UNITY_ANDROID
+            InputMp3Path = SaveFile(LoadBytesFromResoursesTxt(InputAudioSource.clip.name), "");
+            
+            _outAudioName = "out.mp3";
+#endif
         }
 
         public void InitGifsGram(int loop)
@@ -345,15 +347,26 @@ namespace Assets.Scripts.UI
             UpdateStartEndTimes();
 
 #if UNITY_EDITOR
-            InputMp3Path = EditorUtility.OpenFilePanel("Select a short Song", "", "");
+            var tmp = EditorUtility.OpenFilePanel("Select a short Song", "", "");
 #elif UNITY_ANDROID
-            InputMp3Path = Do();                            // вызов ffmpeg
+            var tmp = Do();                            // вызов ffmpeg
 #else
             return;
 #endif
-            if (string.IsNullOrEmpty(InputMp3Path))
+
+            if (string.IsNullOrEmpty(tmp))
             {
-                Debug.Log("FfmpegCall: Do returned InputMp3Path null");      // ffmpeg fail
+                Debug.Log("FfmpegCall: Do result is null");      // ffmpeg fail
+                return;
+            }
+            else
+            {
+                if (InputMp3Path.Contains(Application.persistentDataPath))
+                {
+                    File.Delete(InputMp3Path);
+                }
+
+                InputMp3Path = tmp;
             }
 
             Debug.Log("FfmpegCall: InputMp3Path = " + InputMp3Path);
@@ -422,12 +435,21 @@ namespace Assets.Scripts.UI
             return "";
         }
 
+        Texture2D DuplicateTexture(Texture2D source)
+        {
+            byte[] pix = source.GetRawTextureData();
+            Texture2D readableText = new Texture2D(source.width, source.height, source.format, false);
+            readableText.LoadRawTextureData(pix);
+            readableText.Apply();
+            return readableText;
+        }
+
         public void InitInputGif(List<MyGifFrame> myGif)
         {
-            myGif.Add(new MyGifFrame(Image1.GetRawTextureData(), Image1.width, Image1.height, 1f, null));
-            myGif.Add(new MyGifFrame(Image2.GetRawTextureData(), Image2.width, Image2.height, 4f, null));
-            myGif.Add(new MyGifFrame(Image3.GetRawTextureData(), Image3.width, Image3.height, 1f, null));
-            myGif.Add(new MyGifFrame(Image4.GetRawTextureData(), Image3.width, Image3.height, 1f, null));
+            myGif.Add(new MyGifFrame(DuplicateTexture(Image1).GetRawTextureData(), Image1.width, Image1.height, 1f, null));
+            myGif.Add(new MyGifFrame(DuplicateTexture(Image2).GetRawTextureData(), Image2.width, Image2.height, 4f, null));
+            myGif.Add(new MyGifFrame(DuplicateTexture(Image3).GetRawTextureData(), Image3.width, Image3.height, 1f, null));
+            myGif.Add(new MyGifFrame(DuplicateTexture(Image4).GetRawTextureData(), Image3.width, Image3.height, 1f, null));
         }
 
         public void RegionAutoSynth()
@@ -487,30 +509,35 @@ namespace Assets.Scripts.UI
 
         public byte[] LoadBytesFromResoursesTxt(string path)
         {
-            TextAsset file = Resources.Load(path) as TextAsset;
+            TextAsset file = Resources.Load(path, typeof(TextAsset)) as TextAsset;
             if (file != null)
             {
+                Debug.Log("LoadBytesFromResoursesTxt: loaded " + file.bytes.Length);
                 return file.bytes;
             }
-
+            Debug.Log("LoadBytesFromResoursesTxt: fail load " + path);
             return null;
         }
 
-        public void SaveFile(byte[] bytes, string prefix)
+        public string SaveFile(byte[] bytes, string prefix)
         {
             Stream stream = new MemoryStream(bytes);
             BinaryWriter binaryWriter;
+            string outPath;
 #if UNITY_EDITOR
-            binaryWriter = new BinaryWriter(File.Open(EditorUtility.SaveFilePanel("Select to save", "", "", "mp3"),
-                FileMode.Create));
+            outPath = EditorUtility.SaveFilePanel("Select to save", "", "", "mp3");
+            binaryWriter = new BinaryWriter(File.Open(outPath, FileMode.Create));
 #elif UNITY_ANDROID
-            var outPath = Path.Combine(Application.persistentDataPath, prefix + _outAudioName + ".mp3");
+            outPath = Path.Combine(Application.persistentDataPath, prefix + _outAudioName + ".mp3");
             File.Delete(outPath);
             Debug.Log("SaveFile: OutFile outPath exists = " + File.Exists(outPath) + " :: " + outPath);
             binaryWriter = new BinaryWriter(File.Open(outPath, FileMode.Create));
+            
 #endif
             binaryWriter.Write(bytes);
             binaryWriter.Close();
+
+            return outPath;
         }
 
         public void OpenReadAudioFile()
