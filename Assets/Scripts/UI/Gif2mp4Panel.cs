@@ -15,10 +15,7 @@ namespace Assets.Scripts.UI
 {
     public class Gif2mp4Panel : BaseInterface
     {
-        public Texture2D Image1;
-        public Texture2D Image2;
-        public Texture2D Image3;
-        public Texture2D Image4;
+        public List<Texture2D> Images;
         public AudioSource InputAudioSource;
         public AudioSource CurrAudioSource;
         public AudioClip CloneAudioClip;
@@ -69,7 +66,19 @@ namespace Assets.Scripts.UI
 
         public void Start()
         {
-            StartDo();
+            InitGifsGram(_loopGifX);                                    // INPUT GIF
+
+            MakeHistogramImage(InputAudioSource.clip, LoopAudioX);      // Audio Histogram
+
+            CurrentAudioLenght = InputAudioSource.clip.length;
+            CurrAudioSource.clip = InputAudioSource.clip;
+
+#if UNITY_EDITOR
+#elif UNITY_ANDROID
+            InputMp3Path = SaveFile(LoadBytesFromResoursesTxt(InputAudioSource.clip.name), "");
+            
+            _outAudioName = "out.mp3";
+#endif
         }
 
         public void Update()
@@ -87,23 +96,6 @@ namespace Assets.Scripts.UI
             {
                 ReturnBordersButton.SetActive(false);
             }
-        }
-
-        public void StartDo()
-        {
-            InitGifsGram(_loopGifX);                                    // INPUT GIF
-
-            MakeHistogramImage(InputAudioSource.clip, LoopAudioX);      // Audio Histogram
-
-            CurrentAudioLenght = InputAudioSource.clip.length;
-            CurrAudioSource.clip = InputAudioSource.clip;
-
-#if UNITY_EDITOR
-#elif UNITY_ANDROID
-            InputMp3Path = SaveFile(LoadBytesFromResoursesTxt(InputAudioSource.clip.name), "");
-            
-            _outAudioName = "out.mp3";
-#endif
         }
 
         public void InitGifsGram(int loop)
@@ -332,7 +324,7 @@ namespace Assets.Scripts.UI
             CurrAudioSource.Play();
         }
 
-        public void HistorgamCutButton()                         
+        public void HistorgamCutButton()
         {
             FfmpegCall(FfmpegCallDOAudioCut);
         }
@@ -435,21 +427,13 @@ namespace Assets.Scripts.UI
             return "";
         }
 
-        Texture2D DuplicateTexture(Texture2D source)
-        {
-            byte[] pix = source.GetRawTextureData();
-            Texture2D readableText = new Texture2D(source.width, source.height, source.format, false);
-            readableText.LoadRawTextureData(pix);
-            readableText.Apply();
-            return readableText;
-        }
 
         public void InitInputGif(List<MyGifFrame> myGif)
         {
-            myGif.Add(new MyGifFrame(DuplicateTexture(Image1).GetRawTextureData(), Image1.width, Image1.height, 1f, null));
-            myGif.Add(new MyGifFrame(DuplicateTexture(Image2).GetRawTextureData(), Image2.width, Image2.height, 4f, null));
-            myGif.Add(new MyGifFrame(DuplicateTexture(Image3).GetRawTextureData(), Image3.width, Image3.height, 1f, null));
-            myGif.Add(new MyGifFrame(DuplicateTexture(Image4).GetRawTextureData(), Image3.width, Image3.height, 1f, null));
+            foreach (var image in Images)
+            {
+                myGif.Add(new MyGifFrame(image.GetRawTextureData(), image.width, image.height, 1f, null));
+            }
         }
 
         public void RegionAutoSynth()
@@ -468,9 +452,54 @@ namespace Assets.Scripts.UI
             }
         }
 
-        public void AutoAudioExtend()
+        public void AutoAudioExtendButton()
+        {
+            FfmpegCall(FfmpegCallDOAutoAudioExtend);
+        }
+
+        public string FfmpegCallDOAutoAudioExtend()
         {
             // расширяет аудио до размера гиф через ffmpeg
+            var outPath = Path.Combine(Application.persistentDataPath, _outAudioName);
+
+            if (outPath == InputMp3Path)
+            {
+                outPath = Path.Combine(Application.persistentDataPath,
+                    "out" + (int) UnityEngine.Random.Range(1, 100) + ".mp3");
+            }
+
+            var fDuractionRatio = CurrentAudioLenght / GifDuractionTimeSec;
+            if (2.00f <= fDuractionRatio && fDuractionRatio <= 2.03f)
+            {
+                fDuractionRatio = 2.0f;
+            }
+
+            if (0.47f <= fDuractionRatio && fDuractionRatio <= 0.50f)
+            {
+                fDuractionRatio = 0.50f;
+            }
+
+            if (2.0 < fDuractionRatio || fDuractionRatio < 0.5f)
+            {
+                Debug.Log("FfmpegCallDOAutoAudioExtend: duractionRatio if incorrect (0.5<x<2.0) = " +
+                          fDuractionRatio); // RESTRICTION
+                return "";
+            }
+
+            var sDuractionRatio = fDuractionRatio.ToString().Replace(",", ".");
+
+            Debug.Log("FfmpegCallDOAutoAudioExtend: inPath = " + InputMp3Path);
+            Debug.Log("FfmpegCallDOAutoAudioExtend: outPath = " + outPath);
+            Debug.Log("FfmpegCallDOAutoAudioExtend: duractionRatio = " + sDuractionRatio);
+
+            File.Delete(outPath);
+
+
+            //return FfmpegExecute("-codecs") == 0 ? outPath : "";
+            //return FfmpegExecute(" -i " + InputMp3Path + " -af atempo=" + sDuractionRatio + " -codec:a libmp3lame " + outPath) == 0
+            return FfmpegExecute(" -i " + InputMp3Path + " -af atempo=" + sDuractionRatio + " -vn " + outPath) == 0
+                ? outPath
+                : "";
         }
 
         private string FfmpegCallDOAudioExtendX2()
