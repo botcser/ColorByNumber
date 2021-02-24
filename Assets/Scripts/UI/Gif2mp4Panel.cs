@@ -16,6 +16,7 @@ namespace Assets.Scripts.UI
     public class Gif2mp4Panel : BaseInterface
     {
         public List<Texture2D> Images;
+        public List<float> ImagesDuractions = new List<float>(){1, 1, 1, 1};
         public AudioSource InputAudioSource;
         public AudioSource CurrAudioSource;
         public AudioClip CloneAudioClip;
@@ -66,16 +67,16 @@ namespace Assets.Scripts.UI
 
         public void Start()
         {
-            InitGifsGram(_loopGifX);                                    // INPUT GIF
+            InitGifsGram(_loopGifX, 1);                                    // INPUT GIF
 
             MakeHistogramImage(InputAudioSource.clip, LoopAudioX);      // Audio Histogram
 
             CurrentAudioLenght = InputAudioSource.clip.length;
             CurrAudioSource.clip = InputAudioSource.clip;
-
+            
 #if UNITY_EDITOR
 #elif UNITY_ANDROID
-            InputMp3Path = SaveFile(LoadBytesFromResoursesTxt(InputAudioSource.clip.name), "");
+            InputMp3Path = SaveFile(LoadBytesFromResoursesTxt(InputAudioSource.clip.name), _outAudioName);
             
             _outAudioName = "out.mp3";
 #endif
@@ -98,10 +99,10 @@ namespace Assets.Scripts.UI
             }
         }
 
-        public void InitGifsGram(int loop)
+        public void InitGifsGram(int loop, float ratio)
         {
             InputGif = new List<MyGifFrame>();
-            InitInputGif(InputGif);
+            InitInputGif(InputGif, ratio);
             GifsGramMake(InputGif, Gifgram, GifFramePrefab, loop);
         }
 
@@ -326,15 +327,15 @@ namespace Assets.Scripts.UI
 
         public void HistorgamCutButton()
         {
-            FfmpegCall(FfmpegCallDOAudioCut);
+            FfmpegCall(FfmpegCallDOAudioCut, false);
         }
 
         public void HistorgamExtendX2Button()                     // DEP
         {
-            FfmpegCall(FfmpegCallDOAudioExtendX2);
+            FfmpegCall(FfmpegCallDOAudioExtendX2, false);
         }
 
-        public void FfmpegCall(Func<string> Do)
+        public void FfmpegCall(Func<string> Do, bool AR)
         {
             UpdateStartEndTimes();
 
@@ -362,14 +363,28 @@ namespace Assets.Scripts.UI
             }
 
             Debug.Log("FfmpegCall: InputMp3Path = " + InputMp3Path);
-            StartCoroutine(GetAudioClip());                 // загрузка результатов ffmpeg
+            StartCoroutine(GetAudioClip(AR));                 // загрузка результатов ffmpeg
         }
 
-        public AudioClip MakeMonoAudioClip(AudioClip audioClip, string name)
+        public AudioClip MakeMonoAudioClip(AudioClip audioClip, string name, bool AR)
         {
-            AudioClip newAudioClip =
-                AudioClip.Create(name, audioClip.samples, audioClip.channels, audioClip.frequency, false);
-            float[] copyData = new float[audioClip.samples * audioClip.channels];
+            float[] copyData;
+            AudioClip newAudioClip;
+
+            if (AR)
+            {
+                newAudioClip =
+                    AudioClip.Create(name, audioClip.samples / 2, audioClip.channels, audioClip.frequency, false);
+                copyData = new float[audioClip.samples / 2 * audioClip.channels];
+            }
+            else
+            {
+                newAudioClip =
+                    AudioClip.Create(name, audioClip.samples, audioClip.channels, audioClip.frequency, false);
+                copyData = new float[audioClip.samples * audioClip.channels];
+            }
+
+
             audioClip.GetData(copyData, 0);
 
             List<float> monoData = new List<float>();
@@ -428,11 +443,11 @@ namespace Assets.Scripts.UI
         }
 
 
-        public void InitInputGif(List<MyGifFrame> myGif)
+        private void InitInputGif(List<MyGifFrame> myGif, float ratio)
         {
             foreach (var image in Images)
             {
-                myGif.Add(new MyGifFrame(image.GetRawTextureData(), image.width, image.height, 1f, null));
+                myGif.Add(new MyGifFrame(image.GetRawTextureData(), image.width, image.height, ImagesDuractions[Images.IndexOf(image)] * ratio, null));
             }
         }
 
@@ -454,7 +469,21 @@ namespace Assets.Scripts.UI
 
         public void AutoAudioExtendButton()
         {
-            FfmpegCall(FfmpegCallDOAutoAudioExtend);
+            FfmpegCall(FfmpegCallDOAutoAudioExtend, true);
+        }
+
+        public void AutoGifExtendButton()
+        {
+            var fDuractionRatio = CurrentAudioLenght / GifDuractionTimeSec;
+
+            GifDuractionTimeSec *= fDuractionRatio;
+
+            InitGifsGram(1, fDuractionRatio);
+
+            for (int i = 0; i < ImagesDuractions.Count; i++)
+            {
+                ImagesDuractions[i] *= fDuractionRatio;
+            }
         }
 
         public string FfmpegCallDOAutoAudioExtend()
@@ -496,8 +525,7 @@ namespace Assets.Scripts.UI
 
 
             //return FfmpegExecute("-codecs") == 0 ? outPath : "";
-            //return FfmpegExecute(" -i " + InputMp3Path + " -af atempo=" + sDuractionRatio + " -codec:a libmp3lame " + outPath) == 0
-            return FfmpegExecute(" -i " + InputMp3Path + " -af atempo=" + sDuractionRatio + " -vn " + outPath) == 0
+            return FfmpegExecute(" -i " + InputMp3Path + " -af atempo=" + sDuractionRatio + " -codec:a libmp3lame " + outPath) == 0
                 ? outPath
                 : "";
         }
@@ -548,7 +576,7 @@ namespace Assets.Scripts.UI
             return null;
         }
 
-        public string SaveFile(byte[] bytes, string prefix)
+        public string SaveFile(byte[] bytes, string outAudioName)
         {
             Stream stream = new MemoryStream(bytes);
             BinaryWriter binaryWriter;
@@ -557,7 +585,7 @@ namespace Assets.Scripts.UI
             outPath = EditorUtility.SaveFilePanel("Select to save", "", "", "mp3");
             binaryWriter = new BinaryWriter(File.Open(outPath, FileMode.Create));
 #elif UNITY_ANDROID
-            outPath = Path.Combine(Application.persistentDataPath, prefix + _outAudioName + ".mp3");
+            outPath = Path.Combine(Application.persistentDataPath, outAudioName + ".mp3");
             File.Delete(outPath);
             Debug.Log("SaveFile: OutFile outPath exists = " + File.Exists(outPath) + " :: " + outPath);
             binaryWriter = new BinaryWriter(File.Open(outPath, FileMode.Create));
@@ -572,7 +600,7 @@ namespace Assets.Scripts.UI
         public void OpenReadAudioFile()
         {
             PickFile();
-            StartCoroutine(GetAudioClip());
+            StartCoroutine(GetAudioClip(false));
         }
 
         public void PickFile()
@@ -594,9 +622,9 @@ namespace Assets.Scripts.UI
             Debug.Log("PickFile: permission = " + permission);
         }
 
-        private IEnumerator GetAudioClip()
+        private IEnumerator GetAudioClip(bool AR)
         {
-            yield return new WaitForSeconds(2f);
+            yield return new WaitForSeconds(2f);                    // жду, тк до этого мог выполняться ffmpeg
 
 
             if (!string.IsNullOrEmpty(InputMp3Path))
@@ -618,7 +646,16 @@ namespace Assets.Scripts.UI
                         _outAudioName = "out.mp3";
                         Debug.Log("GetAudioClip: _outAudioName = " + _outAudioName);
 
-                        CloneAudioClip = MakeMonoAudioClip(clip, _outAudioName);
+                        CloneAudioClip = MakeMonoAudioClip(clip, _outAudioName, AR);
+                        if (AR)
+                        {
+                            var newAudioClip =
+                                AudioClip.Create(name, clip.samples / 2, clip.channels, clip.frequency, false);
+                            var copyData = new float[clip.samples / 2 * clip.channels];
+                            clip.GetData(copyData, 0);
+                            newAudioClip.SetData(copyData, 0);
+                            clip = newAudioClip;
+                        }
 
                         InputAudioSource.clip = clip;
                         CurrAudioSource.clip = clip;
