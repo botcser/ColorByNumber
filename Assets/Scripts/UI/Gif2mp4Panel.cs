@@ -76,7 +76,7 @@ namespace Assets.Scripts.UI
             
 #if UNITY_EDITOR
 #elif UNITY_ANDROID
-            InputMp3Path = SaveFile(LoadBytesFromResoursesTxt(InputAudioSource.clip.name), _outAudioName);
+            InputMp3Path = SaveFile(LoadBytesFromResoursesTxt(InputAudioSource.clip.name), _outAudioName, "mp3");
             
             _outAudioName = "out.mp3";
 #endif
@@ -398,31 +398,8 @@ namespace Assets.Scripts.UI
             return newAudioClip;
         }
 
-        private string FfmpegCallDOAudioCut()
-        {
-            var outPath = Path.Combine(Application.persistentDataPath, _outAudioName);
-
-            if (outPath == InputMp3Path)
-            {
-                outPath = Path.Combine(Application.persistentDataPath, "out" + (int)UnityEngine.Random.Range(1, 100) + ".mp3");
-            }
-
-            Debug.Log("FfmpegCallDOAudioCut: inPath = " + InputMp3Path);
-            Debug.Log("FfmpegCallDOAudioCut: outPath = " + outPath);
-
-            File.Delete(outPath);
-
-            var _start = TimeSpan.FromSeconds(StartTime).ToString(@"hh\:mm\:ss\.ff");
-            var _length = TimeSpan.FromSeconds(EndTime - StartTime).ToString(@"hh\:mm\:ss\.ff");
-
-            var cmd = $"-ss {_start} -t {_length} -i {InputMp3Path} -acodec copy {outPath}";
-
-            return FfmpegExecute(cmd) == 0 ? outPath : "";
-        }
-
         public int FfmpegExecute(string cmd)
         {
-            Debug.Log("FfmpegExecute: CurrentDirectory" + Environment.CurrentDirectory);
             Debug.Log("FfmpegExecute: persistentDataPath" + Application.persistentDataPath);
 
             var player = new AndroidJavaClass("com.unity3d.player.UnityPlayerActivity");
@@ -471,7 +448,7 @@ namespace Assets.Scripts.UI
         {
             FfmpegCall(FfmpegCallDOAutoAudioExtend, true);
         }
-
+        
         public void AutoGifExtendButton()
         {
             var fDuractionRatio = CurrentAudioLenght / GifDuractionTimeSec;
@@ -486,7 +463,29 @@ namespace Assets.Scripts.UI
             }
         }
 
-        public string FfmpegCallDOAutoAudioExtend()
+        private string FfmpegCallDOAudioCut()
+        {
+            var outPath = Path.Combine(Application.persistentDataPath, _outAudioName);
+
+            if (outPath == InputMp3Path)
+            {
+                outPath = Path.Combine(Application.persistentDataPath, "out" + (int)UnityEngine.Random.Range(1, 100) + ".mp3");
+            }
+
+            Debug.Log("FfmpegCallDOAudioCut: inPath = " + InputMp3Path);
+            Debug.Log("FfmpegCallDOAudioCut: outPath = " + outPath);
+
+            File.Delete(outPath);
+
+            var _start = TimeSpan.FromSeconds(StartTime).ToString(@"hh\:mm\:ss\.ff");
+            var _length = TimeSpan.FromSeconds(EndTime - StartTime).ToString(@"hh\:mm\:ss\.ff");
+
+            var cmd = $"-ss {_start} -t {_length} -i {InputMp3Path} -acodec copy {outPath}";
+
+            return FfmpegExecute(cmd) == 0 ? outPath : "";
+        }
+
+        private string FfmpegCallDOAutoAudioExtend()
         {
             // расширяет аудио до размера гиф через ffmpeg
             var outPath = Path.Combine(Application.persistentDataPath, _outAudioName);
@@ -549,6 +548,40 @@ namespace Assets.Scripts.UI
                 : "";
         }
 
+        public void MakeGif2Mp4()
+        {
+            var outPath = Path.Combine(Application.persistentDataPath, "gif2mp4" + ".mp4");
+            var myGif = MakeGif();
+
+            Debug.Log("MakeGif2Mp4: InputMp3Path = " + InputMp3Path);
+            Debug.Log("MakeGif2Mp4: MyGif = " + myGif);
+            Debug.Log("MakeGif2Mp4: outPath = " + outPath);
+
+            if (!string.IsNullOrEmpty(myGif))
+            {
+                FfmpegExecute("-i " + myGif + " -i " + InputMp3Path +
+                                     @" -movflags faststart -pix_fmt yuv420p -vf ""scale=trunc(iw/2)*2:trunc(ih/2)*2"" -c:a copy -b:a 128k " +
+                                     outPath);
+            }
+        }
+
+        private string MakeGif()
+        {
+            var imageName = Path.Combine(Application.persistentDataPath, Images[0].name.Substring(0, Images[0].name.Length - 1));
+            var outPath = Path.Combine(Application.persistentDataPath, "out.gif");
+
+            foreach (var image in Images)
+            {
+                SaveFile(image.EncodeToPNG(), image.name, "png");
+            }
+
+            return FfmpegExecute("-f image2 -framerate 1 -i " + imageName + "%d.png -vf scale=" + Images[0].width +
+                                 "x" + Images[0].height +
+                                 ",transpose=1 " + outPath) == 0
+                ? outPath
+                : "";
+        }
+
         public void ResetRegion()
         {
             var deltaTime = -1f;
@@ -576,16 +609,16 @@ namespace Assets.Scripts.UI
             return null;
         }
 
-        public string SaveFile(byte[] bytes, string outAudioName)
+        public string SaveFile(byte[] bytes, string outAudioName, string postfix)
         {
             Stream stream = new MemoryStream(bytes);
             BinaryWriter binaryWriter;
             string outPath;
 #if UNITY_EDITOR
-            outPath = EditorUtility.SaveFilePanel("Select to save", "", "", "mp3");
+            outPath = EditorUtility.SaveFilePanel("Select to save", "", "", postfix);
             binaryWriter = new BinaryWriter(File.Open(outPath, FileMode.Create));
 #elif UNITY_ANDROID
-            outPath = Path.Combine(Application.persistentDataPath, outAudioName + ".mp3");
+            outPath = Path.Combine(Application.persistentDataPath, outAudioName + "." + postfix);
             File.Delete(outPath);
             Debug.Log("SaveFile: OutFile outPath exists = " + File.Exists(outPath) + " :: " + outPath);
             binaryWriter = new BinaryWriter(File.Open(outPath, FileMode.Create));
