@@ -1,10 +1,13 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using Assets.AudioCrop;
+using Assets.Scripts.Common;
 using Assets.Scripts.Data;
+using Newtonsoft.Json;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -31,7 +34,7 @@ namespace Assets.Scripts.UI
         public Text GifDuractionTimeText;
         public Text AudioRegionDuractionTimeText;
         public List<DraggableRect> DraggableRects;
-        public List<MyGifFrame> InputGif;
+        public List<GifFrame> InputGif;
         public List<TimeBorder> BordersTimeBorder;
         public List<InputField> BordersInputFields;
         public GameObject ReturnBordersButton;
@@ -53,11 +56,15 @@ namespace Assets.Scripts.UI
         public static float EndTime;
         public static int BordersOutCount = 2; // enter twice from start
         public static int LoopAudioX = 1;
+        public static string Url = "https://localhost:5001/api/";
+        public static string Url2 = "http://hippogames.dev/api/";
+        public static string Token = "cac464deb2b2bd3dc39218b649769f4b";
+        private Dictionary<int, Coroutine> _coroutines = new Dictionary<int, Coroutine>();
 
         private float _histogramFrameWidthInSeconds = 10f;
         private int _loopGifX = 1;
         private string _newAudio;
-        private string _outAudioName;
+        private string _outAudioName = "test";
         private Texture2D _currentTexture2D;
 
         public void Awake()
@@ -101,7 +108,7 @@ namespace Assets.Scripts.UI
 
         public void InitGifsGram(int loop, float ratio)
         {
-            InputGif = new List<MyGifFrame>();
+            InputGif = new List<GifFrame>();
             InitInputGif(InputGif, ratio);
             GifsGramMake(InputGif, Gifgram, GifFramePrefab, loop);
         }
@@ -190,7 +197,7 @@ namespace Assets.Scripts.UI
             return _currentTexture2D;
         }
 
-        public void GifsGramMake(List<MyGifFrame> myGif, HorizontalLayoutGroup gifsgram, GameObject gifFramePrefab,
+        public void GifsGramMake(List<GifFrame> myGif, HorizontalLayoutGroup gifsgram, GameObject gifFramePrefab,
             int loop)
         {
             GifDuractionTimeSec = 0f;
@@ -301,8 +308,14 @@ namespace Assets.Scripts.UI
 
         public static void UpdateStartEndTimes()
         {
+            if (string.IsNullOrEmpty(Instance.StartTimeBorderInput.text))
+            {
+                return;
+            }
+
             var time1 = float.Parse(Instance.StartTimeBorderInput.text);
             var time2 = float.Parse(Instance.EndTimeBorderInput.text);
+
             if (time1 > time2)
             {
                 StartTime = time2;
@@ -340,14 +353,16 @@ namespace Assets.Scripts.UI
             UpdateStartEndTimes();
 
 #if UNITY_EDITOR
-            var tmp = EditorUtility.OpenFilePanel("Select a short Song", "", "");
+            
+            var fileName = EditorUtility.OpenFilePanel("Select a short Song", "", "");
+            ConvertToMovie(new Gif(InputGif), File.ReadAllBytes(fileName), 4, 1, SaveMp4File, null);
 #elif UNITY_ANDROID
             var tmp = Do();                            // вызов ffmpeg
 #else
             return;
 #endif
 
-            if (string.IsNullOrEmpty(tmp))
+            if (string.IsNullOrEmpty(fileName))
             {
                 Debug.Log("FfmpegCall: Do result is null");      // ffmpeg fail
                 return;
@@ -359,7 +374,7 @@ namespace Assets.Scripts.UI
                     File.Delete(InputMp3Path);
                 }
 
-                InputMp3Path = tmp;
+                InputMp3Path = fileName;
             }
 
             Debug.Log("FfmpegCall: InputMp3Path = " + InputMp3Path);
@@ -420,11 +435,11 @@ namespace Assets.Scripts.UI
         }
 
 
-        private void InitInputGif(List<MyGifFrame> myGif, float ratio)
+        private void InitInputGif(List<GifFrame> myGif, float ratio)
         {
             foreach (var image in Images)
             {
-                myGif.Add(new MyGifFrame(image.GetRawTextureData(), image.width, image.height, ImagesDuractions[Images.IndexOf(image)] * ratio, null));
+                myGif.Add(new GifFrame(image.GetRawTextureData(), image.width, image.height, ImagesDuractions[Images.IndexOf(image)] * ratio, null));
             }
         }
 
@@ -609,6 +624,33 @@ namespace Assets.Scripts.UI
             return null;
         }
 
+        public void SaveMp4File(bool success, string error, byte[] bytes)
+        {
+            Stream stream = new MemoryStream(bytes);
+            BinaryWriter binaryWriter;
+            string outPath = "";
+
+            if (success)
+            {
+#if UNITY_EDITOR
+                outPath = EditorUtility.SaveFilePanel("Select to save", "", "", "mp4");
+                binaryWriter = new BinaryWriter(File.Open(outPath, FileMode.Create));
+#elif UNITY_ANDROID
+            outPath = Path.Combine(Application.persistentDataPath, _outAudioName + "." + "mp4");
+            File.Delete(outPath);
+            Debug.Log("SaveFile: OutFile outPath exists = " + File.Exists(outPath) + " :: " + outPath);
+            binaryWriter = new BinaryWriter(File.Open(outPath, FileMode.Create));
+
+#endif
+                binaryWriter.Write(bytes);
+                binaryWriter.Close();
+            }
+            else
+            {
+                Debug.Log("SaveMp4File: error from server: " + error);
+            }
+        }
+
         public string SaveFile(byte[] bytes, string outAudioName, string postfix)
         {
             Stream stream = new MemoryStream(bytes);
@@ -715,7 +757,70 @@ namespace Assets.Scripts.UI
             }
 
         }
-    }
 
+        public void ConvertToMovie(Gif gif, byte[] audio, int scale, int loop, Action<bool, string, byte[]> callback, Action<float> onProgress)
+        {
+            var data = new Dictionary<string, object>
+            {
+                { "json", JsonConvert.SerializeObject(gif) },
+                { "audio", audio },
+                { "scale", scale },
+                { "loop", loop }
+            };
+
+            HttpPost($"{Url}convert/ConvertToMovie", data, (success, error, bytes, json) => callback(success, error, bytes), onProgress);
+        }
+
+        private void HttpPost(string url, Dictionary<string, object> data, Action<bool, string, string> callback, Action<float> onProgress = null)
+        {
+            HttpPost(url, data, (success, error, bytes, json) => callback(success, error, json));
+        }
+
+        private void HttpPost(string url, Dictionary<string, object> data, Action<bool, string, byte[], string> callback, Action<float> onProgress = null)
+        {
+            var form = new WWWForm();
+
+            foreach (var key in data.Keys)
+            {
+                switch (data[key])
+                {
+                    case byte[] _:
+                        form.AddField(key, Convert.ToBase64String((byte[])data[key]));
+                        break;
+                    case float _:
+                        form.AddField(key, ((float)data[key]).ToString(CultureInfo.InvariantCulture));
+                        break;
+                    case string _:
+                        form.AddField(key, (string)data[key]);
+                        break;
+                    case DateTime _:
+                        form.AddField(key, ((DateTime)data[key]).ToString(CultureInfo.InvariantCulture));
+                        break;
+                    default:
+                        form.AddField(key, data[key] == null ? "" : data[key].ToString());
+                        break;
+                }
+            }
+
+            form.AddField("token", Token);
+            form.AddField("hash", 127 * form.data.Length);
+
+            var id = UnityEngine.Random.Range(0, int.MaxValue);
+
+            _coroutines.Add(id, Downloader.Download(url, form, webRequest =>
+            {
+                _coroutines.Remove(id);
+
+                if (string.IsNullOrEmpty(webRequest.url))
+                {
+                    callback(true, null, webRequest.downloadHandler.data, webRequest.downloadHandler.text);
+                }
+                else
+                {
+                    callback(false, webRequest.responseCode == 500 && !webRequest.downloadHandler.text.StartsWith("<!DOCTYPE html>") ? webRequest.downloadHandler.text : webRequest.error, webRequest.downloadHandler.data, null);
+                }
+            }, onProgress));
+        }
+    }
 }
 
