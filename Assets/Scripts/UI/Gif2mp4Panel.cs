@@ -38,7 +38,7 @@ namespace Assets.Scripts.UI
         public List<TimeBorder> BordersTimeBorder;
         public List<InputField> BordersInputFields;
         public GameObject ReturnBordersButton;
-        public GameObject GifFramePrefab;
+        public Image GifFramePrefab;
         public TimeBorder CenterLabel;
 
         public HorizontalLayoutGroup Gifgram;
@@ -197,7 +197,7 @@ namespace Assets.Scripts.UI
             return _currentTexture2D;
         }
 
-        public void GifsGramMake(List<GifFrame> myGif, HorizontalLayoutGroup gifsgram, GameObject gifFramePrefab,
+        public void GifsGramMake(List<GifFrame> myGif, HorizontalLayoutGroup gifsgram, Image gifFramePrefab,
             int loop)
         {
             GifDuractionTimeSec = 0f;
@@ -218,17 +218,15 @@ namespace Assets.Scripts.UI
             {
                 foreach (var gif in myGif)
                 {
-                    //var scale = gif.Delay / GifHistogramLenghtSec;
                     var size = (int) Mathf.Sqrt((float) gif.Encoded.Length / 3);
-                    //var sizeDelay = GifgramRect.rect.width * gif.Delay / GifHistogramLenghtSec;
-                    var tex = new Texture2D((int) size, (int) size, TextureFormat.RGB24, false)
-                        {filterMode = FilterMode.Point};
+                    var tex = new Texture2D(2, 2) { filterMode = FilterMode.Point };
+
+                    tex.LoadImage(gif.Encoded);
+
                     var sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), Vector2.one / 2);
-                    tex.LoadRawTextureData(gif.Encoded);
-                    tex.Apply();
-                    sprite.texture.LoadImage(tex.EncodeToPNG());
-                    gifFramePrefab.GetComponent<Image>().sprite = sprite;
-                    Instantiate(gifFramePrefab, gifsgram.transform);
+                    var instance = Instantiate(gifFramePrefab, gifsgram.transform);
+
+                    instance.sprite = sprite;
                 }
 
                 loop--;
@@ -439,7 +437,7 @@ namespace Assets.Scripts.UI
         {
             foreach (var image in Images)
             {
-                myGif.Add(new GifFrame(image.GetRawTextureData(), image.width, image.height, ImagesDuractions[Images.IndexOf(image)] * ratio, null));
+                myGif.Add(new GifFrame(image.EncodeToPNG(), image.width, image.height, ImagesDuractions[Images.IndexOf(image)] * ratio, null));
             }
         }
 
@@ -811,7 +809,7 @@ namespace Assets.Scripts.UI
             {
                 _coroutines.Remove(id);
 
-                if (string.IsNullOrEmpty(webRequest.url))
+                if (string.IsNullOrEmpty(webRequest.error))
                 {
                     callback(true, null, webRequest.downloadHandler.data, webRequest.downloadHandler.text);
                 }

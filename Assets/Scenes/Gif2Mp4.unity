@@ -4084,7 +4084,7 @@ MonoBehaviour:
   - {fileID: 1125195972}
   - {fileID: 1024291107}
   ReturnBordersButton: {fileID: 2063287345}
-  GifFramePrefab: {fileID: 8708795618019384056, guid: f9345d557969637429168f827cc8a15d,
+  GifFramePrefab: {fileID: 8650342012583744341, guid: f9345d557969637429168f827cc8a15d,
     type: 3}
   CenterLabel: {fileID: 1061646784}
   Gifgram: {fileID: 290982352}
