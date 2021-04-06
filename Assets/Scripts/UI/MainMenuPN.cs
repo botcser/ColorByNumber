@@ -12,9 +12,9 @@ namespace Assets.Scripts.UI
         public void Awake()
         {
             Instance = this;
-            Profile.Load();
+            ColorByNumberSavedGame.Load();
             //LocalizationManager.Read();
-            //LocalizationManager.Language = Profile.Instance.Settings.Language;
+            //LocalizationManager.Language = ColorByNumberSavedGame.Instance.Settings.Language;
         }
 
         public void Start()
@@ -24,7 +24,7 @@ namespace Assets.Scripts.UI
 
         public void Continue()
         {
-            if (Profile.Draft != null)
+            if (ColorByNumberSavedGame.Draft != null)
             {
                 ColorByNumberInit.Continue = true;
             }

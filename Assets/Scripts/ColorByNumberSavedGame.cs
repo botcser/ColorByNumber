@@ -1,11 +1,11 @@
 ﻿using System;
-using System.Security.Cryptography;
+using Assets.Scripts.Data;
 using UnityEngine;
 
-namespace Assets.Scripts.Data
+namespace Assets.Scripts
 {
     [Serializable]
-    public class Profile
+    public class ColorByNumberSavedGame
     {
         public int Progress;
         public Settings Settings = new Settings();
@@ -14,7 +14,7 @@ namespace Assets.Scripts.Data
         public string DraftString;
 
         public static byte[] DraftBytes;
-        public static Profile Instance;
+        public static ColorByNumberSavedGame Instance;
 
         private const string ProfKey = "profile";
 
@@ -35,13 +35,12 @@ namespace Assets.Scripts.Data
             if (PlayerPrefs.HasKey(ProfKey))
             {
                 var json = PlayerPrefs.GetString(ProfKey);
-                Instance = JsonUtility.FromJson<Profile>(json);
-                //Draft.LoadImage(Convert.FromBase64String(Instance.DraftString));
+                Instance = JsonUtility.FromJson<ColorByNumberSavedGame>(json);
                 DraftBytes = Convert.FromBase64String(Instance.DraftString);
             }
             else
             {
-                Instance = new Profile();
+                Instance = new ColorByNumberSavedGame();
 
                 switch (Application.systemLanguage)
                 {
@@ -55,8 +54,5 @@ namespace Assets.Scripts.Data
                 }
             }
         }
-
-
-
     }
 }
