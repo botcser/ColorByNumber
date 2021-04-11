@@ -31,11 +31,6 @@ namespace Assets.Scripts
         {
             ColorByNumberSavedGame.Instance.Save();
             Close();
-            
-            /*if (ReturnTo is UserPage)                                                 // PixelStudio
-            {
-                UserPage.Instance.Open();
-            }*/
         }
 
         public void ResetDraft()
